@@ -15,9 +15,9 @@ export default defineConfig(() => {
     build: {
       cssCodeSplit: false,
       rollupOptions: {
+        input: path.resolve(__dirname, 'src/main.tsx'),
         output: {
-          entryFileNames: 'assets/[name].js',
-          chunkFileNames: 'assets/[name].js',
+          entryFileNames: 'assets/index.js',
           assetFileNames: 'assets/[name].[ext]',
           inlineDynamicImports: true,
         },
