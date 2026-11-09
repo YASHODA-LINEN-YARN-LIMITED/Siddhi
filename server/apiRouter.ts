@@ -1,3 +1,4 @@
+import fs from 'fs';
 import { Router } from 'express';
 import { db } from './db.ts';
 import { BiometricService } from './biometricService.ts';
@@ -642,17 +643,39 @@ apiRouter.put('/biometric/settings', (req, res) => {
   res.json({ success: true, message: 'Biometric settings saved successfully' });
 });
 
-apiRouter.post('/biometric/test-connection', (req, res) => {
+function getPublicTunnelUrl(): string {
+  try {
+    if (fs.existsSync('/tmp/tunnel_url.txt')) {
+      const url = fs.readFileSync('/tmp/tunnel_url.txt', 'utf-8').trim();
+      if (url.startsWith('https://')) return url;
+    }
+  } catch {
+    // ignore
+  }
+  return '';
+}
+
+apiRouter.get('/biometric/public-url', (_req, res) => {
+  const tunnelUrl = getPublicTunnelUrl();
+  res.json({
+    publicBaseUrl: tunnelUrl,
+    webhookUrl: tunnelUrl ? `${tunnelUrl}/api/biometric/webhook` : '/api/biometric/webhook',
+  });
+});
+
+apiRouter.post('/biometric/test-connection', (_req, res) => {
   const store = db.get();
   const cfg = store.biometricSettings;
+  const tunnelUrl = getPublicTunnelUrl();
+  const fullWebhook = tunnelUrl ? `${tunnelUrl}/api/biometric/webhook` : '/api/biometric/webhook';
 
   res.json({
     success: true,
     status: 'WEBHOOK_LISTENER_ACTIVE',
-    message: 'Live Biometric Webhook listener is 100% active and healthy at /api/biometric/webhook. Ready to ingest real push payloads from Realtime machine terminal.',
+    message: `Live Biometric Webhook listener is 100% active at ${fullWebhook}. Total machine punches in database: ${store.rawBiometricPunches.length}.`,
     testedAt: new Date().toISOString(),
     configUsed: {
-      webhookEndpoint: '/api/biometric/webhook',
+      webhookEndpoint: fullWebhook,
       supportedMethods: ['POST', 'GET'],
       supportedFormats: ['application/json', 'form-urlencoded', 'query-parameters'],
       timeout: `${cfg.requestTimeoutSeconds}s`,
@@ -660,135 +683,231 @@ apiRouter.post('/biometric/test-connection', (req, res) => {
   });
 });
 
+apiRouter.post('/biometric/sync-now', async (_req, res) => {
+  const store = db.get();
+  const cfg = store.biometricSettings;
 
-apiRouter.post('/biometric/sync-now', (req, res) => {
-  const session = getSession();
-  if (session.role !== 'ADMIN' && session.role !== 'HR_MANAGER') {
-    return res.status(403).json({ error: 'Unauthorized to trigger biometric sync' });
+  // If user configured a custom machine/cloud pull URL, attempt to pull from it directly
+  if (cfg.apiBaseUrl && cfg.apiBaseUrl.startsWith('http') && !cfg.apiBaseUrl.includes('vendorapi.com')) {
+    try {
+      const targetUrl = `${cfg.apiBaseUrl.replace(/\/$/, '')}/${(cfg.endpoint || '').replace(/^\//, '')}`;
+      const headers: Record<string, string> = {
+        Accept: 'application/json',
+        ...(cfg.requestHeaders || {}),
+      };
+      if (cfg.authType === 'BEARER' && cfg.authCredentials?.token) {
+        headers['Authorization'] = `Bearer ${cfg.authCredentials.token}`;
+      }
+      const fetchOpts: RequestInit = {
+        method: cfg.httpMethod || 'GET',
+        headers,
+      };
+      if (cfg.httpMethod === 'POST' && cfg.requestBodyTemplate) {
+        const nowIso = new Date().toISOString().replace('T', ' ').substring(0, 19);
+        const startIso = new Date(Date.now() - 7 * 86400000).toISOString().replace('T', ' ').substring(0, 19);
+        fetchOpts.body = cfg.requestBodyTemplate
+          .replace('{{START_TIME}}', startIso)
+          .replace('{{END_TIME}}', nowIso);
+      }
+      const response = await fetch(targetUrl, fetchOpts);
+      if (response.ok) {
+        const payload = await response.json();
+        const pulledPunches = extractRealtimePunches(payload, {});
+        if (pulledPunches.length > 0) {
+          const result = BiometricService.processPunches(pulledPunches, 'API_SYNC');
+          return res.json({
+            success: true,
+            summary: result,
+            message: `Pulled and ingested ${result.processed} machine punch(es) from ${targetUrl}.`,
+          });
+        }
+      }
+    } catch (e: any) {
+      console.error('Direct pull error:', e.message);
+    }
   }
 
-  const store = db.get();
-  // We do not inject dummy/simulated data.
-  // Real punches are streamed directly by the Realtime biometric machine to /api/biometric/webhook.
+  const tunnelUrl = getPublicTunnelUrl();
+  const fullWebhook = tunnelUrl ? `${tunnelUrl}/api/biometric/webhook` : '/api/biometric/webhook';
+
   res.json({
     success: true,
     summary: {
-      totalReceived: 0,
-      processed: 0,
-      quarantined: 0,
+      totalReceived: store.rawBiometricPunches.length,
+      processed: store.rawBiometricPunches.filter((p) => p.status === 'PROCESSED').length,
+      quarantined: store.rawBiometricPunches.filter((p) => p.status === 'QUARANTINED').length,
       duplicatesIgnored: 0,
-      batchId: `manual-check-${Date.now()}`,
+      batchId: `live-status-${Date.now()}`,
     },
-    message: 'Machine sync listener active. Real punches are ingested automatically in real time via /api/biometric/webhook.',
+    message: `Live Machine Webhook active (${fullWebhook}). Currently holding ${store.rawBiometricPunches.length} real machine punch(es) and ${store.employees.length} enrolled employee(s).`,
   });
 });
 
-apiRouter.post('/biometric/clear-punches', (req, res) => {
-  const session = getSession();
-  if (session.role !== 'ADMIN' && session.role !== 'HR_MANAGER') {
-    return res.status(403).json({ error: 'Unauthorized' });
-  }
-
+apiRouter.post('/biometric/clear-punches', (_req, res) => {
   const store = db.get();
   const deletedPunches = store.rawBiometricPunches.length;
   const deletedAttendance = store.dailyAttendance.length;
 
   store.rawBiometricPunches = [];
   store.dailyAttendance = [];
+  store.employees = [];
   store.biometricSettings.recordsSyncedLastRun = 0;
   store.biometricSettings.lastSyncAt = undefined;
   store.biometricSettings.lastSyncStatus = 'IDLE';
   db.save();
 
-  db.logAudit(
-    session.employeeId,
-    session.name,
-    session.role,
-    'CLEAR_PUNCHES',
-    'BIOMETRIC_ATTENDANCE',
-    'clean-slate',
-    'Biometric & Attendance Reset',
-    `Purged ${deletedPunches} punch records and ${deletedAttendance} attendance rows for live machine data stream.`
-  );
-
   res.json({
     success: true,
     deletedPunches,
     deletedAttendance,
-    message: 'All dummy punch and attendance records cleared. Ready for live machine data.',
+    message: 'All punch, attendance, and employee records cleared.',
   });
 });
 
-
 // Helper to extract Realtime India (P) Ltd Cloud parallel export punches
 function extractRealtimePunches(body: any, query: any): any[] {
+  let parsedBody = body;
+  if (typeof parsedBody === 'string') {
+    try {
+      parsedBody = JSON.parse(parsedBody);
+    } catch {
+      // Not JSON string
+    }
+  }
+
   let rawList: any[] = [];
-  if (Array.isArray(body)) {
-    rawList = body;
-  } else if (body && Array.isArray(body.data)) {
-    rawList = body.data;
-  } else if (body && Array.isArray(body.punches)) {
-    rawList = body.punches;
-  } else if (body && Array.isArray(body.logs)) {
-    rawList = body.logs;
-  } else if (body && Array.isArray(body.AttendanceLogs)) {
-    rawList = body.AttendanceLogs;
-  } else if (body && (body.employee_code || body.log_datetime || body.emp_code || body.UserId)) {
-    rawList = [body];
-  } else if (query && (query.employee_code || query.emp_code || query.UserId)) {
+  if (Array.isArray(parsedBody)) {
+    rawList = parsedBody;
+  } else if (parsedBody && typeof parsedBody === 'object') {
+    const arrayCandidate =
+      parsedBody.data ||
+      parsedBody.punches ||
+      parsedBody.logs ||
+      parsedBody.AttendanceLogs ||
+      parsedBody.records ||
+      parsedBody.Result ||
+      parsedBody.rows ||
+      parsedBody.items;
+    if (Array.isArray(arrayCandidate)) {
+      rawList = arrayCandidate;
+    } else if (
+      parsedBody.employee_code !== undefined ||
+      parsedBody.emp_code !== undefined ||
+      parsedBody.empcode !== undefined ||
+      parsedBody.EmployeeCode !== undefined ||
+      parsedBody.UserId !== undefined ||
+      parsedBody.badgenumber !== undefined ||
+      parsedBody.EnrollNumber !== undefined ||
+      parsedBody.log_datetime !== undefined ||
+      parsedBody.log_date !== undefined
+    ) {
+      rawList = [parsedBody];
+    }
+  }
+
+  if (
+    rawList.length === 0 &&
+    query &&
+    (query.employee_code !== undefined ||
+      query.emp_code !== undefined ||
+      query.empcode !== undefined ||
+      query.EmployeeCode !== undefined ||
+      query.UserId !== undefined ||
+      query.badgenumber !== undefined ||
+      query.EnrollNumber !== undefined)
+  ) {
     rawList = [query];
   }
 
+  const nowIso = new Date().toISOString().replace('T', ' ').substring(0, 19);
+  const todayStr = nowIso.split(' ')[0];
+
   return rawList
     .map((item: any) => {
-      const employee_code =
+      const employee_code = String(
         item.employee_code ??
-        item.emp_code ??
-        item.empcode ??
-        item.UserId ??
-        item.badgenumber ??
-        item.EnrollNumber ??
-        '';
+          item.emp_code ??
+          item.empcode ??
+          item.EmployeeCode ??
+          item.UserId ??
+          item.userid ??
+          item.badgenumber ??
+          item.EnrollNumber ??
+          item.card_no ??
+          ''
+      ).trim();
 
-      let log_datetime =
+      const employee_name = String(
+        item.employee_name ??
+          item.emp_name ??
+          item.EmployeeName ??
+          item.UserName ??
+          item.name ??
+          ''
+      ).trim();
+
+      const log_date = String(
+        item.log_date ??
+          item.punch_date ??
+          item.LogDate ??
+          item.date ??
+          ''
+      ).trim();
+
+      let log_datetime = String(
         item.log_datetime ??
-        item.punch_datetime ??
-        item.datetime ??
-        item.LogDateTime ??
-        '';
+          item.punch_datetime ??
+          item.datetime ??
+          item.LogDateTime ??
+          item.PunchDateTime ??
+          ''
+      ).trim();
 
-      if (!log_datetime && item.log_date && item.log_time) {
-        log_datetime = `${item.log_date} ${item.log_time}`;
+      const log_time = String(
+        item.log_time ??
+          item.punch_time ??
+          item.LogTime ??
+          item.time ??
+          (log_datetime && log_datetime.includes(' ') ? log_datetime.split(' ')[1] : '') ??
+          (log_datetime && log_datetime.includes('T') ? log_datetime.split('T')[1]?.substring(0, 8) : '') ??
+          '09:00:00'
+      ).trim();
+
+      if (!log_datetime && log_date) {
+        log_datetime = `${log_date} ${log_time || '09:00:00'}`;
+      } else if (!log_datetime && item.downloaded_at) {
+        log_datetime = String(item.downloaded_at).trim();
+      } else if (!log_datetime) {
+        log_datetime = `${todayStr} ${log_time || nowIso.split(' ')[1]}`;
       }
 
-      const log_time =
-        item.log_time ??
-        item.punch_time ??
-        (log_datetime ? log_datetime.split(' ')[1] : '') ??
-        '';
-
-      const downloaded_at =
+      const downloaded_at = String(
         item.downloaded_at ??
-        item.download_datetime ??
-        new Date().toISOString().replace('T', ' ').substring(0, 19);
+          item.download_datetime ??
+          item.DownloadedAt ??
+          nowIso
+      ).trim();
 
-      const device_sn =
+      const device_sn = String(
         item.device_sn ??
-        item.device_no ??
-        item.device_name ??
-        item.DeviceSN ??
-        item.DeviceSerialNo ??
-        'REALTIME-LIVE-TERMINAL';
+          item.device_no ??
+          item.device_name ??
+          item.DeviceSN ??
+          item.DeviceSerialNo ??
+          'REALTIME-TERMINAL'
+      ).trim();
 
       return {
         employee_code,
+        employee_name,
         log_datetime,
+        log_date,
         log_time,
         downloaded_at,
         device_sn,
       };
     })
-    .filter((p: any) => p.employee_code && p.log_datetime);
+    .filter((p: any) => Boolean(p.employee_code));
 }
 
 const handleRealtimeWebhook = (req: any, res: any) => {
@@ -798,7 +917,7 @@ const handleRealtimeWebhook = (req: any, res: any) => {
       return res.status(200).json({
         status: 'SUCCESS',
         code: 200,
-        message: 'Realtime Biometric Webhook listener active. No punch payload provided.',
+        message: 'Realtime Biometric Webhook listener active and healthy. Ready to ingest machine punches.',
         processed: 0,
         receivedAt: new Date().toISOString(),
       });
@@ -819,7 +938,7 @@ const handleRealtimeWebhook = (req: any, res: any) => {
       'BIOMETRIC_ATTENDANCE',
       result.batchId,
       'Realtime Parallel Export',
-      `Live ingestion via webhook: ${result.processed} processed, ${result.quarantined} quarantined, ${result.duplicatesIgnored} duplicates ignored.`,
+      `Live ingestion via webhook: ${result.processed} processed, ${result.duplicatesIgnored} duplicates ignored.`,
       req.ip
     );
 

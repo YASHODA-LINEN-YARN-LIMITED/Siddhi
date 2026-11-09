@@ -3,7 +3,9 @@ import type { RawBiometricPunch, DailyAttendance } from './types.ts';
 
 export interface PunchInput {
   employee_code: string | number;
+  employee_name?: string;
   log_datetime: string;
+  log_date?: string;
   log_time: string;
   downloaded_at?: string;
   device_sn: string;
@@ -13,7 +15,7 @@ export class BiometricService {
   /**
    * Process an array of incoming biometric punch records idempotently
    */
-  public static processPunches(punches: PunchInput[], source: 'API_SYNC' | 'CSV_IMPORT' | 'SIMULATOR' = 'API_SYNC'): {
+  public static processPunches(punches: PunchInput[], _source: 'API_SYNC' | 'CSV_IMPORT' | 'SIMULATOR' = 'API_SYNC'): {
     totalReceived: number;
     processed: number;
     quarantined: number;
@@ -24,7 +26,7 @@ export class BiometricService {
     const store = db.get();
     const batchId = `sync-${Date.now()}`;
     let processed = 0;
-    let quarantined = 0;
+    const quarantined = 0;
     let duplicatesIgnored = 0;
     const details: string[] = [];
 
@@ -35,9 +37,9 @@ export class BiometricService {
       )
     );
 
-    // Active employee lookup by code (supporting both E1023, 1023, and zero-padded 00001023)
+    // Active employee lookup by code
     const employeeMap = new Map<string, typeof store.employees[0]>();
-    store.employees.forEach((e) => {
+    const registerEmpInMap = (e: typeof store.employees[0]) => {
       const codeUpper = e.employeeCode.toUpperCase().trim();
       employeeMap.set(codeUpper, e);
       const digitsOnly = codeUpper.replace(/\D/g, '');
@@ -45,15 +47,33 @@ export class BiometricService {
         employeeMap.set(digitsOnly, e);
         employeeMap.set(String(parseInt(digitsOnly, 10)), e);
       }
-    });
+    };
+    store.employees.forEach(registerEmpInMap);
 
     const affectedEmployeeDates = new Set<string>();
 
     for (const punch of punches) {
-      const codeStr = String(punch.employee_code).trim().toUpperCase();
-      const deviceSn = String(punch.device_sn || 'DEVICE-UNKNOWN').trim();
-      const logDatetime = String(punch.log_datetime).trim();
-      const logTime = String(punch.log_time || logDatetime.split(' ')[1] || '00:00:00').trim();
+      const codeStr = String(punch.employee_code ?? '').trim().toUpperCase();
+      const empNameRaw = String(punch.employee_name ?? '').trim();
+      const deviceSn = String(punch.device_sn || 'REALTIME-TERMINAL').trim();
+      let logDatetime = String(punch.log_datetime || '').trim();
+      const todayDate = new Date().toISOString().substring(0, 10);
+
+      if (!logDatetime && punch.log_date && punch.log_time) {
+        logDatetime = `${punch.log_date.trim()} ${punch.log_time.trim()}`;
+      } else if (!logDatetime && punch.log_time) {
+        logDatetime = `${todayDate} ${punch.log_time.trim()}`;
+      } else if (!logDatetime && punch.log_date) {
+        logDatetime = `${punch.log_date.trim()} 09:00:00`;
+      }
+
+      const logTime = String(punch.log_time || logDatetime.split(/[ T]/)[1] || '09:00:00').trim();
+      if (logDatetime && !logDatetime.includes(' ') && !logDatetime.includes('T')) {
+        logDatetime = `${logDatetime} ${logTime}`;
+      } else {
+        logDatetime = logDatetime.replace('T', ' ').substring(0, 19);
+      }
+
       const downloadedAt = punch.downloaded_at || new Date().toISOString().replace('T', ' ').substring(0, 19);
 
       if (!codeStr || !logDatetime) {
@@ -68,52 +88,78 @@ export class BiometricService {
 
       const codeDigits = codeStr.replace(/\D/g, '');
       const codeClean = codeDigits ? String(parseInt(codeDigits, 10)) : codeStr;
-      const matchedEmployee =
+      let matchedEmployee =
         employeeMap.get(codeStr) ||
         employeeMap.get(codeClean) ||
         employeeMap.get(`E${codeClean}`) ||
         employeeMap.get(codeDigits);
 
       if (!matchedEmployee) {
-        // Quarantine invalid or unmapped employee code
-        const quarantinedRecord: RawBiometricPunch = {
-          id: `punch-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
-          employeeCode: codeStr,
-          logDatetime,
-          logTime,
-          downloadedAt,
-          deviceSn,
-          syncBatchId: batchId,
-          createdAt: new Date().toISOString(),
-          status: 'QUARANTINED',
-          quarantineReason: `Unmapped Employee Code: "${codeStr}" does not match any active employee in Siddhi directory.`,
-        };
-        store.rawBiometricPunches.unshift(quarantinedRecord);
-        existingPunchKeys.add(stableKey);
-        quarantined++;
-        details.push(`Quarantined record for code ${codeStr} at ${logDatetime}`);
-      } else {
-        // Valid punch
-        const validRecord: RawBiometricPunch = {
-          id: `punch-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
-          employeeCode: codeStr,
-          logDatetime,
-          logTime,
-          downloadedAt,
-          deviceSn,
-          syncBatchId: batchId,
-          createdAt: new Date().toISOString(),
-          status: 'PROCESSED',
-          resolvedEmployeeId: matchedEmployee.id,
-        };
-        store.rawBiometricPunches.unshift(validRecord);
-        existingPunchKeys.add(stableKey);
-        processed++;
+        // Auto-create employee directly from biometric machine data
+        const nameParts = empNameRaw ? empNameRaw.split(/\s+/) : [];
+        const firstName = nameParts[0] || 'Employee';
+        const lastName = nameParts.slice(1).join(' ') || codeStr;
 
-        // Track employee + date for attendance aggregation
-        const punchDate = logDatetime.split(' ')[0];
-        affectedEmployeeDates.add(`${matchedEmployee.id}#${punchDate}`);
+        matchedEmployee = {
+          id: `emp-bio-${codeStr.toLowerCase()}-${Date.now().toString(36)}`,
+          employeeCode: codeStr,
+          firstName,
+          lastName,
+          email: `${codeStr.toLowerCase()}@machine.local`,
+          phone: '',
+          gender: 'OTHER',
+          dateOfBirth: '1990-01-01',
+          dateOfJoining: logDatetime.split(' ')[0] || todayDate,
+          companyId: store.companies[0]?.id || 'comp-101',
+          branchId: store.branches[0]?.id || 'br-main',
+          departmentId: store.departments[0]?.id || 'dept-gen',
+          designationId: store.designations[0]?.id || 'desig-gen',
+          gradeId: store.grades[0]?.id || 'grd-l1',
+          status: 'ACTIVE',
+          employmentType: 'FULL_TIME',
+          probationPeriodMonths: 0,
+          confirmationDate: logDatetime.split(' ')[0] || todayDate,
+          role: 'EMPLOYEE',
+          panNumber: '',
+          nationalId: '',
+          pfNumber: '',
+          bankName: '',
+          bankAccountNumber: '',
+          bankIfsc: '',
+          emergencyContactName: '',
+          emergencyContactRelation: '',
+          emergencyContactPhone: '',
+          address: `Biometric Device (${deviceSn})`,
+          currentSalaryStructureId: store.salaryStructures[0]?.id || 'sal-standard',
+        };
+        store.employees.push(matchedEmployee);
+        registerEmpInMap(matchedEmployee);
+        details.push(`Auto-enrolled employee ${codeStr} (${firstName} ${lastName}) from biometric terminal`);
+      } else if (empNameRaw && matchedEmployee.firstName === 'Employee') {
+        const nameParts = empNameRaw.split(/\s+/);
+        matchedEmployee.firstName = nameParts[0] || matchedEmployee.firstName;
+        matchedEmployee.lastName = nameParts.slice(1).join(' ') || matchedEmployee.lastName;
       }
+
+      const validRecord: RawBiometricPunch = {
+        id: `punch-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+        employeeCode: codeStr,
+        logDatetime,
+        logTime,
+        downloadedAt,
+        deviceSn,
+        syncBatchId: batchId,
+        createdAt: new Date().toISOString(),
+        status: 'PROCESSED',
+        resolvedEmployeeId: matchedEmployee.id,
+      };
+      store.rawBiometricPunches.unshift(validRecord);
+      existingPunchKeys.add(stableKey);
+      processed++;
+
+      // Track employee + date for attendance aggregation
+      const punchDate = logDatetime.split(' ')[0];
+      affectedEmployeeDates.add(`${matchedEmployee.id}#${punchDate}`);
     }
 
     // Recompute daily attendance for affected employee-dates

@@ -89,95 +89,57 @@ export interface DatabaseSchema {
 
 function getInitialSeed(): DatabaseSchema {
   const companyId = 'comp-101';
-  const branchBlr = 'br-blr';
-  const branchMum = 'br-mum';
+  const branchMain = 'br-main';
 
   const companies: Company[] = [
     {
       id: companyId,
-      code: 'SIDDHI-CORP',
-      name: 'Siddhi Technologies Private Limited',
-      legalName: 'Siddhi Technologies Pvt. Ltd.',
-      taxId: 'AAACS1234FST001',
+      code: 'SIDDHI-ORG',
+      name: 'Siddhi Organization',
+      legalName: 'Siddhi Organization',
+      taxId: '',
       currency: 'INR',
       timezone: 'Asia/Kolkata',
       dateFormat: 'DD/MM/YYYY',
       financialYearStart: '04-01',
-      website: 'https://siddhi-hrms.local',
-      phone: '+91 80 4123 4567',
-      email: 'hr@siddhi-technologies.internal',
-      address: 'Tower B, Tech Park Campus, Outer Ring Road, Bellandur, Bengaluru, Karnataka 560103',
+      website: '',
+      phone: '',
+      email: 'admin@siddhi-hrms.local',
+      address: 'On-Premises Server',
     },
   ];
 
   const branches: Branch[] = [
     {
-      id: branchBlr,
+      id: branchMain,
       companyId,
-      code: 'BLR-HQ',
-      name: 'Bengaluru Headquarters',
-      address: 'Outer Ring Road, Bellandur',
-      city: 'Bengaluru',
-      state: 'Karnataka',
+      code: 'MAIN-LOC',
+      name: 'Main Organization Branch',
+      address: 'On-Premises',
+      city: '',
+      state: '',
       country: 'India',
-      postalCode: '560103',
+      postalCode: '',
       isHeadquarters: true,
-      geofenceEnabled: true,
-      latitude: 12.9279,
-      longitude: 77.6771,
-      radiusMeters: 300,
-    },
-    {
-      id: branchMum,
-      companyId,
-      code: 'MUM-RO',
-      name: 'Mumbai Regional Office',
-      address: 'Bandra Kurla Complex (BKC), Bandra East',
-      city: 'Mumbai',
-      state: 'Maharashtra',
-      country: 'India',
-      postalCode: '400051',
-      isHeadquarters: false,
       geofenceEnabled: false,
-      latitude: 19.0662,
-      longitude: 72.8687,
-      radiusMeters: 250,
     },
   ];
 
   const departments: Department[] = [
-    { id: 'dept-eng', companyId, code: 'ENG', name: 'Engineering & Product', costCenterCode: 'CC-101' },
-    { id: 'dept-hr', companyId, code: 'HRD', name: 'Human Resources & People Ops', costCenterCode: 'CC-102' },
-    { id: 'dept-fin', companyId, code: 'FIN', name: 'Finance & Accounts', costCenterCode: 'CC-103' },
-    { id: 'dept-sales', companyId, code: 'SLS', name: 'Sales & Business Growth', costCenterCode: 'CC-104' },
-    { id: 'dept-ops', companyId, code: 'OPS', name: 'Operations & IT Infrastructure', costCenterCode: 'CC-105' },
+    { id: 'dept-gen', companyId, code: 'GEN', name: 'General Operations', costCenterCode: 'CC-GEN' },
   ];
 
   const designations: Designation[] = [
-    { id: 'desig-admin', code: 'SYS-ADM', title: 'Principal System Architect & Admin', departmentId: 'dept-ops', gradeLevel: 'L5' },
-    { id: 'desig-hr-mgr', code: 'HR-MGR', title: 'Head of People & HR Operations', departmentId: 'dept-hr', gradeLevel: 'M2' },
-    { id: 'desig-payroll', code: 'PAY-OFF', title: 'Senior Payroll Specialist', departmentId: 'dept-fin', gradeLevel: 'L3' },
-    { id: 'desig-eng-lead', code: 'ENG-LEAD', title: 'Engineering Manager', departmentId: 'dept-eng', gradeLevel: 'M1' },
-    { id: 'desig-sr-dev', code: 'SR-DEV', title: 'Senior Software Engineer', departmentId: 'dept-eng', gradeLevel: 'L3' },
-    { id: 'desig-qa', code: 'QA-ENG', title: 'Quality Assurance Specialist', departmentId: 'dept-eng', gradeLevel: 'L2' },
-    { id: 'desig-recruiter', code: 'TAL-ACQ', title: 'Lead Technical Recruiter', departmentId: 'dept-hr', gradeLevel: 'L2' },
-    { id: 'desig-auditor', code: 'INT-AUD', title: 'Internal Audit & Compliance Analyst', departmentId: 'dept-fin', gradeLevel: 'L3' },
+    { id: 'desig-gen', code: 'EMP', title: 'Staff Member', departmentId: 'dept-gen', gradeLevel: 'L1' },
   ];
 
-  const grades: Grade[] = [
-    { id: 'grd-l1', code: 'L1', name: 'Associate / Trainee', minSalary: 350000, maxSalary: 600000 },
-    { id: 'grd-l2', code: 'L2', name: 'Specialist / Intermediate', minSalary: 600000, maxSalary: 1200000 },
-    { id: 'grd-l3', code: 'L3', name: 'Senior Professional', minSalary: 1200000, maxSalary: 2200000 },
-    { id: 'grd-m1', code: 'M1', name: 'Team Lead / Manager', minSalary: 2000000, maxSalary: 3500000 },
-    { id: 'grd-m2', code: 'M2', name: 'Director / Functional Head', minSalary: 3500000, maxSalary: 6000000 },
-    { id: 'grd-l5', code: 'L5', name: 'Principal / Staff Architect', minSalary: 4000000, maxSalary: 7500000 },
-  ];
+  const grades: Grade[] = [];
 
   const shifts: Shift[] = [
     {
       id: 'shift-gen',
       code: 'GEN-0918',
-      name: 'General Day Shift (9:00 AM - 6:00 PM)',
+      name: 'Standard Shift (9:00 AM - 6:00 PM)',
       startTime: '09:00',
       endTime: '18:00',
       graceMinutes: 15,
@@ -185,105 +147,35 @@ function getInitialSeed(): DatabaseSchema {
       fullDayHours: 8,
       breakMinutes: 60,
       isOvernight: false,
-      weeklyOffDays: [0, 6], // Sun, Sat
-    },
-    {
-      id: 'shift-morn',
-      code: 'MORN-0615',
-      name: 'Early Morning Operations (6:00 AM - 2:30 PM)',
-      startTime: '06:00',
-      endTime: '14:30',
-      graceMinutes: 10,
-      halfDayHours: 4,
-      fullDayHours: 8,
-      breakMinutes: 30,
-      isOvernight: false,
-      weeklyOffDays: [0], // Sun
-    },
-    {
-      id: 'shift-night',
-      code: 'NIGHT-2206',
-      name: 'Overnight Tech Support (10:00 PM - 6:30 AM)',
-      startTime: '22:00',
-      endTime: '06:30',
-      graceMinutes: 15,
-      halfDayHours: 4,
-      fullDayHours: 8,
-      breakMinutes: 30,
-      isOvernight: true,
       weeklyOffDays: [0],
     },
   ];
 
-  const holidays: Holiday[] = [
-    { id: 'hol-1', companyId, name: 'Republic Day', date: '2026-01-26', isRestricted: false, description: 'National Holiday' },
-    { id: 'hol-2', companyId, name: 'Ugadi / Gudi Padwa', date: '2026-03-20', isRestricted: false, description: 'Regional New Year' },
-    { id: 'hol-3', companyId, name: 'May Day (Worker Day)', date: '2026-05-01', isRestricted: false, description: 'Labor Day' },
-    { id: 'hol-4', companyId, name: 'Independence Day', date: '2026-08-15', isRestricted: false, description: 'National Holiday' },
-    { id: 'hol-5', companyId, name: 'Gandhi Jayanti', date: '2026-10-02', isRestricted: false, description: 'National Holiday' },
-    { id: 'hol-6', companyId, name: 'Deepavali / Diwali', date: '2026-11-08', isRestricted: false, description: 'Festival of Lights' },
-    { id: 'hol-7', companyId, name: 'Christmas Day', date: '2026-12-25', isRestricted: false, description: 'Christmas' },
-  ];
+  const holidays: Holiday[] = [];
 
-  const employees: Employee[] = [
-    {
-      id: "admin-01",
-      employeeCode: "ADMIN",
-      firstName: "System",
-      lastName: "Administrator",
-      email: "admin@siddhi-hrms.local",
-      phone: "",
-      gender: "OTHER",
-      dateOfBirth: "1990-01-01",
-      dateOfJoining: "2026-01-01",
-      companyId,
-      branchId: branchBlr,
-      departmentId: "dept-ops",
-      designationId: "desig-admin",
-      gradeId: "grd-l5",
-      status: "ACTIVE",
-      employmentType: "FULL_TIME",
-      probationPeriodMonths: 0,
-      confirmationDate: "2026-01-01",
-      role: "ADMIN",
-      panNumber: "",
-      nationalId: "",
-      pfNumber: "",
-      bankName: "",
-      bankAccountNumber: "",
-      bankIfsc: "",
-      emergencyContactName: "",
-      emergencyContactRelation: "",
-      emergencyContactPhone: "",
-      address: "On-Premises Local Server",
-      currentSalaryStructureId: "sal-standard",
-    },
-  ];
+  const employees: Employee[] = [];
 
   const biometricSettings: BiometricIntegrationSettings = {
     id: 'bio-cfg-01',
-    name: 'Realtime Biometric Device Connector',
+    name: 'Realtime Biometric Machine Connector',
     enabled: true,
-    apiBaseUrl: 'https://vendorapi.com', // Representative sample endpoint as specified
-    endpoint: '/attendance',
+    apiBaseUrl: '',
+    endpoint: '/api/biometric/webhook',
     httpMethod: 'POST',
-    authType: 'BEARER',
+    authType: 'NONE',
     authCredentials: {
-      token: 'demo_biometric_bearer_token_securely_stored',
+      token: '',
     },
     requestHeaders: {
       'Content-Type': 'application/json',
       Accept: 'application/json',
     },
-    queryParams: {
-      limit: '500',
-    },
+    queryParams: {},
     requestBodyTemplate: JSON.stringify({
       from_datetime: '{{START_TIME}}',
       to_datetime: '{{END_TIME}}',
-      device_sn: 'SN-009128',
     }, null, 2),
-    pollingIntervalMinutes: 15,
+    pollingIntervalMinutes: 5,
     requestTimeoutSeconds: 30,
     lastSyncAt: undefined,
     lastSyncStatus: 'IDLE',
