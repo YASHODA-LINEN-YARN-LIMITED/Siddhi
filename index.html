@@ -12,6 +12,13 @@
   </head>
   <body>
     <div id="root"></div>
+    <script>
+      // Automatically route GitHub Pages visitors to the pre-compiled /docs/ bundle
+      if (window.location.hostname.includes('github.io') && !window.location.pathname.includes('/docs')) {
+        var cleanPath = window.location.pathname.replace(/\/$/, '');
+        window.location.replace(cleanPath + '/docs/' + window.location.search + window.location.hash);
+      }
+    </script>
     <script type="module" src="./src/main.tsx"></script>
   </body>
 </html>
