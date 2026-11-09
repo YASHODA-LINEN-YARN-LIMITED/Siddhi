@@ -962,8 +962,15 @@ const handleRealtimeWebhook = (req: any, res: any) => {
   }
 };
 
+apiRouter.options('/biometric/webhook', (_req, res) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, HEAD');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+  return res.sendStatus(200);
+});
 apiRouter.post('/biometric/webhook', handleRealtimeWebhook);
 apiRouter.get('/biometric/webhook', handleRealtimeWebhook);
+apiRouter.all('/biometric/webhook', handleRealtimeWebhook);
 apiRouter.post('/biometric/push', handleRealtimeWebhook);
 
 apiRouter.get('/biometric/raw-punches', (req, res) => {

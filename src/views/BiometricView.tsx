@@ -17,6 +17,9 @@ import {
   Radio,
   Trash2,
   ExternalLink,
+  Play,
+  Info,
+  HelpCircle,
 } from 'lucide-react';
 import { api } from '../api.ts';
 import { notify } from '../utils/notify.ts';
@@ -30,11 +33,22 @@ export const BiometricView: React.FC = () => {
   const [syncing, setSyncing] = useState(false);
   const [clearing, setClearing] = useState(false);
   const [testing, setTesting] = useState(false);
+  const [simulatingWebhook, setSimulatingWebhook] = useState(false);
   const [testResult, setTestResult] = useState<any>(null);
   const [syncResult, setSyncResult] = useState<any>(null);
   const [filterStatus, setFilterStatus] = useState<string>('ALL');
   const [activeTab, setActiveTab] = useState<'realtime_cloud' | 'punches' | 'settings' | 'quarantine' | 'csv'>('realtime_cloud');
   const [copiedUrl, setCopiedUrl] = useState(false);
+  const [copiedCurl, setCopiedCurl] = useState(false);
+
+  // Custom public backend host selection/override for Webhook
+  const isGithubPages = typeof window !== 'undefined' && window.location.hostname.includes('github.io');
+  const devServerUrl = 'https://ais-dev-xprdmpkiap2xlvjmybcnti-854403608887.asia-east1.run.app';
+  
+  const [selectedHostMode, setSelectedHostMode] = useState<'auto' | 'dev_server' | 'custom'>(
+    isGithubPages ? 'dev_server' : 'auto'
+  );
+  const [customHost, setCustomHost] = useState<string>('');
 
   // Quarantine resolution modal state
   const [resolvingPunch, setResolvingPunch] = useState<RawBiometricPunch | null>(null);
@@ -44,10 +58,36 @@ export const BiometricView: React.FC = () => {
   const [csvContent, setCsvContent] = useState<string>('');
   const [csvFeedback, setCsvFeedback] = useState<string | null>(null);
 
-  const webhookUrl =
-    typeof window !== 'undefined'
-      ? `${window.location.origin}/api/biometric/webhook`
-      : 'http://localhost:3000/api/biometric/webhook';
+  // Determine active effective webhook URL
+  const getActiveWebhookUrl = () => {
+    if (selectedHostMode === 'dev_server') {
+      return `${devServerUrl}/api/biometric/webhook`;
+    }
+    if (selectedHostMode === 'custom' && customHost.trim()) {
+      const cleanHost = customHost.trim().replace(/\/$/, '');
+      return `${cleanHost}/api/biometric/webhook`;
+    }
+    if (typeof window !== 'undefined') {
+      return `${window.location.origin}/api/biometric/webhook`;
+    }
+    return 'http://localhost:3000/api/biometric/webhook';
+  };
+
+  const webhookUrl = getActiveWebhookUrl();
+
+  const sampleCurlCommand = `curl -X POST "${webhookUrl}" \\
+  -H "Content-Type: application/json" \\
+  -d '[
+    {
+      "employee_code": "1001",
+      "employee_name": "Yashoda Operative",
+      "log_datetime": "${new Date().toISOString().replace('T', ' ').substring(0, 19)}",
+      "log_date": "${new Date().toISOString().substring(0, 10)}",
+      "log_time": "${new Date().toTimeString().substring(0, 8)}",
+      "downloaded_at": "${new Date().toISOString().replace('T', ' ').substring(0, 19)}",
+      "device_sn": "RT-T502-8849"
+    }
+  ]'`;
 
   const handleCopyWebhookUrl = () => {
     if (navigator.clipboard) {
@@ -55,6 +95,58 @@ export const BiometricView: React.FC = () => {
       setCopiedUrl(true);
       notify('Webhook URL copied to clipboard', 'success');
       setTimeout(() => setCopiedUrl(false), 3000);
+    }
+  };
+
+  const handleCopyCurl = () => {
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(sampleCurlCommand);
+      setCopiedCurl(true);
+      notify('Sample cURL command copied to clipboard', 'success');
+      setTimeout(() => setCopiedCurl(false), 3000);
+    }
+  };
+
+  const handleSimulateWebhookPunch = async () => {
+    try {
+      setSimulatingWebhook(true);
+      const nowIso = new Date().toISOString().replace('T', ' ').substring(0, 19);
+      const dateStr = nowIso.split(' ')[0];
+      const timeStr = nowIso.split(' ')[1];
+
+      // Pick an employee code or default to 1001
+      const empCode = employees[0]?.employeeCode || '1001';
+
+      const payload = [
+        {
+          employee_code: empCode,
+          employee_name: employees[0] ? `${employees[0].firstName} ${employees[0].lastName}` : 'Yashoda Operative',
+          log_datetime: nowIso,
+          log_date: dateStr,
+          log_time: timeStr,
+          downloaded_at: nowIso,
+          device_sn: 'REALTIME-CLOUD-T502',
+        },
+      ];
+
+      const res = await fetch('/api/biometric/webhook', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await res.json();
+      if (res.ok && data.status === 'SUCCESS') {
+        notify(`Simulated punch ingested! Employee: ${empCode} at ${timeStr}`, 'success');
+        await loadData();
+        setActiveTab('punches');
+      } else {
+        notify(`Simulation failed: ${data.error || 'Unknown error'}`, 'error');
+      }
+    } catch (e: any) {
+      notify(`Simulation request failed: ${e.message}`, 'error');
+    } finally {
+      setSimulatingWebhook(false);
     }
   };
 
@@ -70,7 +162,6 @@ export const BiometricView: React.FC = () => {
       setClearing(false);
     }
   };
-
 
   useEffect(() => {
     loadData();
@@ -174,9 +265,21 @@ export const BiometricView: React.FC = () => {
           <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900">
             Biometric Attendance Integration
           </h1>
+          <p className="text-xs text-slate-500 mt-0.5">
+            Realtime Machine live push listener & API connector
+          </p>
         </div>
 
         <div className="flex items-center gap-2">
+          <button
+            onClick={handleSimulateWebhookPunch}
+            disabled={simulatingWebhook}
+            className="px-3 py-2 text-xs font-semibold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 rounded-lg transition-colors flex items-center gap-1.5 shadow-2xs"
+          >
+            <Play className={`h-4 w-4 text-emerald-600 ${simulatingWebhook ? 'animate-spin' : ''}`} />
+            <span>{simulatingWebhook ? 'Simulating...' : 'Simulate Webhook Punch'}</span>
+          </button>
+
           <button
             onClick={handleTestConnection}
             disabled={testing}
@@ -197,6 +300,33 @@ export const BiometricView: React.FC = () => {
         </div>
       </div>
 
+      {/* GitHub Pages Host Warning Banner */}
+      {isGithubPages && (
+        <div className="rounded-xl border-2 border-amber-300 bg-amber-50 p-4 text-xs text-amber-950 space-y-2 shadow-2xs">
+          <div className="flex items-center gap-2 font-bold text-amber-900 text-sm">
+            <AlertTriangle className="h-5 w-5 text-amber-600 shrink-0" />
+            <span>GitHub Pages Endpoint Notice (`github.io`)</span>
+          </div>
+          <p className="text-xs text-amber-900 leading-relaxed">
+            GitHub Pages (<code className="bg-amber-100/80 px-1 py-0.5 rounded font-mono font-bold">yashoda-linen-yarn-limited.github.io</code>) serves static frontend assets only. It cannot execute backend code or listen for HTTP POST requests from Realtime Biometric hardware (hence returning 404/405 errors).
+          </p>
+          <div className="bg-white/80 p-3 rounded-lg border border-amber-200 space-y-1.5 font-sans">
+            <div className="font-semibold text-slate-900">How to fix your Realtime Biometric Push setup:</div>
+            <ul className="list-disc list-inside space-y-1 text-2xs text-slate-700">
+              <li>
+                <strong>Option A (Live Dev Application):</strong> Point Realtime Cloud to your active server host at <code className="bg-slate-100 px-1 py-0.5 rounded font-mono text-emerald-800 font-bold">{devServerUrl}/api/biometric/webhook</code>.
+              </li>
+              <li>
+                <strong>Option B (Local/On-Premises Server):</strong> Run <code className="bg-slate-100 px-1 py-0.5 rounded font-mono">npm run dev</code> on your local server and use Cloudflare Tunnel or ngrok to create an HTTPS URL.
+              </li>
+              <li>
+                <strong>Option C (Instant Webhook Test):</strong> Click the <strong>"Simulate Webhook Punch"</strong> button above to test real punch processing directly!
+              </li>
+            </ul>
+          </div>
+        </div>
+      )}
+
       {/* Live Webhook Active Status */}
       <div className="rounded-xl border border-emerald-300 bg-emerald-50/80 p-3.5 text-xs text-emerald-950 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div className="flex items-center gap-2.5">
@@ -210,7 +340,7 @@ export const BiometricView: React.FC = () => {
           className="px-3 py-1.5 text-xs font-semibold text-emerald-900 bg-white hover:bg-emerald-100/60 border border-emerald-300 rounded-lg transition-colors flex items-center gap-1.5 self-start sm:self-auto shadow-2xs"
         >
           <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
-          <span>Refresh Live Punches</span>
+          <span>Refresh Live Punches ({rawPunches.length})</span>
         </button>
       </div>
 
@@ -294,7 +424,7 @@ export const BiometricView: React.FC = () => {
         </button>
       </div>
 
-      {/* TAB: Realtime Cloud Live Sync (Parallel Data Export) */}
+      {/* TAB: Realtime Cloud Live Sync */}
       {activeTab === 'realtime_cloud' && (
         <div className="space-y-6">
           {/* Webhook Endpoint Card */}
@@ -321,23 +451,96 @@ export const BiometricView: React.FC = () => {
               </div>
             </div>
 
-            <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-slate-700">Your Siddhi API Webhook URL:</label>
-              <div className="flex items-center gap-2">
-                <input
-                  type="text"
-                  readOnly
-                  value={webhookUrl}
-                  className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-xs font-mono text-slate-900 select-all"
-                />
+            {/* Server Webhook Host Selector */}
+            <div className="space-y-3 bg-slate-50 p-4 rounded-xl border border-slate-200">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <label className="text-xs font-semibold text-slate-800">Select Target Server Host for Webhook:</label>
+                <div className="flex flex-wrap items-center gap-2 text-2xs">
+                  <label className="flex items-center gap-1 cursor-pointer font-medium text-slate-700">
+                    <input
+                      type="radio"
+                      name="hostMode"
+                      checked={selectedHostMode === 'dev_server'}
+                      onChange={() => setSelectedHostMode('dev_server')}
+                    />
+                    <span>Live App Server (Recommended)</span>
+                  </label>
+
+                  <label className="flex items-center gap-1 cursor-pointer font-medium text-slate-700 ml-2">
+                    <input
+                      type="radio"
+                      name="hostMode"
+                      checked={selectedHostMode === 'auto'}
+                      onChange={() => setSelectedHostMode('auto')}
+                    />
+                    <span>Browser Default</span>
+                  </label>
+
+                  <label className="flex items-center gap-1 cursor-pointer font-medium text-slate-700 ml-2">
+                    <input
+                      type="radio"
+                      name="hostMode"
+                      checked={selectedHostMode === 'custom'}
+                      onChange={() => setSelectedHostMode('custom')}
+                    />
+                    <span>Custom Host</span>
+                  </label>
+                </div>
+              </div>
+
+              {selectedHostMode === 'custom' && (
+                <div className="space-y-1">
+                  <input
+                    type="text"
+                    value={customHost}
+                    onChange={(e) => setCustomHost(e.target.value)}
+                    placeholder="https://your-custom-backend-server.com"
+                    className="w-full bg-white border border-slate-300 rounded-lg px-3 py-1.5 text-xs font-mono"
+                  />
+                  <p className="text-2xs text-slate-400">Enter your live server domain or Cloudflare Tunnel HTTPS URL</p>
+                </div>
+              )}
+
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <label className="text-2xs font-semibold text-slate-700">Calculated Webhook URL to paste in Realtime Cloud:</label>
+                  <span className="text-2xs font-bold text-emerald-700">Ready for POST & GET</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    readOnly
+                    value={webhookUrl}
+                    className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-xs font-mono text-slate-900 font-bold select-all"
+                  />
+                  <button
+                    onClick={handleCopyWebhookUrl}
+                    className="px-4 py-2 text-xs font-semibold text-white bg-slate-900 hover:bg-slate-800 rounded-lg transition-colors flex items-center gap-1.5 shrink-0 shadow-xs"
+                  >
+                    {copiedUrl ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
+                    <span>{copiedUrl ? 'Copied' : 'Copy Webhook URL'}</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Test Simulation Box */}
+            <div className="bg-slate-900 text-slate-100 p-4 rounded-xl space-y-2 text-xs">
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-emerald-400 flex items-center gap-1.5">
+                  <TerminalIcon className="h-4 w-4" />
+                  Terminal & Postman Test Command (cURL)
+                </span>
                 <button
-                  onClick={handleCopyWebhookUrl}
-                  className="px-4 py-2 text-xs font-semibold text-white bg-slate-900 hover:bg-slate-800 rounded-lg transition-colors flex items-center gap-1.5 shrink-0 shadow-xs"
+                  onClick={handleCopyCurl}
+                  className="px-3 py-1 text-2xs font-medium text-slate-900 bg-emerald-400 hover:bg-emerald-300 rounded transition-colors"
                 >
-                  {copiedUrl ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
-                  <span>{copiedUrl ? 'Copied' : 'Copy URL'}</span>
+                  {copiedCurl ? 'Copied cURL' : 'Copy cURL Command'}
                 </button>
               </div>
+              <pre className="text-2xs font-mono bg-black/60 p-3 rounded-lg overflow-x-auto text-emerald-300 border border-slate-800 leading-relaxed">
+                {sampleCurlCommand}
+              </pre>
             </div>
           </div>
 
@@ -541,7 +744,6 @@ export const BiometricView: React.FC = () => {
           <div className="flex items-center justify-between">
             <h2 className="text-sm font-semibold text-slate-900">Quarantine Resolution Hub</h2>
           </div>
-
 
           {quarantinedPunches.length === 0 ? (
             <div className="py-12 text-center text-xs text-slate-400">
@@ -798,3 +1000,20 @@ export const BiometricView: React.FC = () => {
     </div>
   );
 };
+
+function TerminalIcon(props: React.SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      {...props}
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      viewBox="0 0 24 24"
+    >
+      <polyline points="4 17 10 11 4 5" />
+      <line x1="12" y1="19" x2="20" y2="19" />
+    </svg>
+  );
+}
