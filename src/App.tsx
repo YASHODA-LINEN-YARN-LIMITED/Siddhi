@@ -52,12 +52,12 @@ export default function App() {
   // First-run setup modal state
   const [showFirstRunModal, setShowFirstRunModal] = useState(false);
   const [firstRunForm, setFirstRunForm] = useState({
-    organizationName: 'Siddhi Technologies Private Limited',
-    legalName: 'Siddhi Technologies Pvt. Ltd.',
+    organizationName: 'Siddhi Organization',
+    legalName: 'Siddhi Organization',
     currency: 'INR',
     timezone: 'Asia/Kolkata',
-    adminName: 'Vikram Aditya',
-    adminEmail: 'admin@siddhi-technologies.internal',
+    adminName: 'System Administrator',
+    adminEmail: 'admin@siddhi-hrms.local',
   });
 
   useEffect(() => {
@@ -83,26 +83,23 @@ export default function App() {
     } catch (e) {
       console.error('Failed to load session:', e);
       setCurrentUser({
-        employeeId: 'emp-admin',
-        employeeCode: 'E1001',
-        name: 'Vikram Aditya',
-        email: 'admin@siddhi-technologies.internal',
+        employeeId: 'admin-01',
+        employeeCode: 'ADMIN',
+        name: 'System Administrator',
+        email: 'admin@siddhi-hrms.local',
         role: 'ADMIN',
-        departmentId: 'dept-ops',
+        departmentId: 'dept-gen',
         branchId: 'br-blr',
       });
       setAvailableRoles([
-        { role: 'ADMIN', label: 'System Administrator (Vikram Aditya)', empId: 'emp-admin' },
-        { role: 'HR_MANAGER', label: 'HR Manager (Pooja Sharma)', empId: 'emp-hr' },
-        { role: 'PAYROLL_OFFICER', label: 'Payroll Specialist (Karthik Subramanian)', empId: 'emp-payroll' },
-        { role: 'MANAGER', label: 'Engineering Manager (Rajiv Nambiar)', empId: 'emp-mgr' },
-        { role: 'EMPLOYEE', label: 'Standard Employee (Sneha Rao)', empId: 'emp-staff1' },
+        { role: 'ADMIN', label: 'System Administrator', empId: 'admin-01' },
       ]);
       setIsFirstRunCompleted(true);
-      setActiveBranchName('Bengaluru Headquarters');
+      setActiveBranchName('Main Organization Branch');
     } finally {
       setLoading(false);
     }
+
 
   };
 

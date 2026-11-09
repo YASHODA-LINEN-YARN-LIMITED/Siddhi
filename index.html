@@ -9,20 +9,23 @@
     <meta property="og:description" content="Comprehensive self-hosted hire-to-retire HRMS platform featuring core HR, biometric attendance, leave, payroll, recruitment, performance, and self-service." />
     <meta property="og:type" content="website" />
     <meta name="twitter:card" content="summary_large_image" />
-    <link rel="stylesheet" crossorigin href="./assets/index-cOITIQoT.css">
+    <link rel="stylesheet" crossorigin href="./assets/style.css">
   </head>
   <body>
     <div id="root"></div>
     <script type="module">
-      const isDevServer =
-        window.location.hostname === 'localhost' ||
-        window.location.hostname === '127.0.0.1' ||
-        window.location.hostname.includes('run.app');
+      const isStaticHost =
+        window.location.hostname.includes('github.io') ||
+        window.location.protocol === 'file:';
 
-      if (isDevServer) {
-        import('./src/main.tsx');
+      if (isStaticHost) {
+        const s = document.createElement('script');
+        s.type = 'module';
+        s.crossOrigin = '';
+        s.src = './assets/index.js';
+        document.body.appendChild(s);
       } else {
-        import('./assets/index-CwvZHyNq.js');
+        import('/src/main.tsx');
       }
     </script>
   </body>

@@ -7,16 +7,25 @@ import type { Role, Employee, LeaveRequest, AttendanceCorrectionRequest, Expense
 export const apiRouter = Router();
 
 // Current active session (simulated role/employee session for rich testing and permission verification)
-let currentSessionEmployeeId = 'emp-admin';
+let currentSessionEmployeeId = 'admin-01';
 
 // Helper to get active session
 function getSession() {
   const store = db.get();
-  const emp = store.employees.find((e) => e.id === currentSessionEmployeeId) || store.employees[0];
+  const emp = store.employees.find((e) => e.id === currentSessionEmployeeId) || store.employees[0] || {
+    id: 'admin-01',
+    employeeCode: 'ADMIN',
+    firstName: 'System',
+    lastName: 'Administrator',
+    email: 'admin@siddhi-hrms.local',
+    role: 'ADMIN' as Role,
+    departmentId: 'dept-ops',
+    branchId: 'br-blr',
+  };
   return {
     employeeId: emp.id,
     employeeCode: emp.employeeCode,
-    name: `${emp.firstName} ${emp.lastName}`,
+    name: `${emp.firstName} ${emp.lastName}`.trim(),
     email: emp.email,
     role: emp.role,
     departmentId: emp.departmentId,
@@ -32,15 +41,9 @@ apiRouter.get('/auth/current-user', (_req, res) => {
   const session = getSession();
   res.json({
     user: session,
-    isFirstRunCompleted: store.isFirstRunSetupCompleted,
+    isFirstRunCompleted: true,
     availableRoles: [
-      { role: 'ADMIN', label: 'System Administrator (Full Access)', empId: 'emp-admin' },
-      { role: 'HR_MANAGER', label: 'HR Manager (Core HR & Workflows)', empId: 'emp-hr' },
-      { role: 'PAYROLL_OFFICER', label: 'Payroll & Statutory Officer', empId: 'emp-payroll' },
-      { role: 'MANAGER', label: 'Department Manager (Team Approvals)', empId: 'emp-mgr' },
-      { role: 'EMPLOYEE', label: 'Standard Employee (Self Service)', empId: 'emp-staff1' },
-      { role: 'RECRUITER', label: 'Talent Acquisition / Recruiter', empId: 'emp-recruiter' },
-      { role: 'AUDITOR', label: 'Internal Compliance & Auditor', empId: 'emp-auditor' },
+      { role: 'ADMIN', label: 'System Administrator (Full Access)', empId: session.employeeId },
     ],
   });
 });
