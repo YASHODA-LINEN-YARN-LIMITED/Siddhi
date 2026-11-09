@@ -9,17 +9,23 @@
     <meta property="og:description" content="Comprehensive self-hosted hire-to-retire HRMS platform featuring core HR, biometric attendance, leave, payroll, recruitment, performance, and self-service." />
     <meta property="og:type" content="website" />
     <meta name="twitter:card" content="summary_large_image" />
+    <link rel="stylesheet" crossorigin href="./assets/index-YM0pp0I9.css">
   </head>
   <body>
     <div id="root"></div>
-    <script>
-      // Automatically route GitHub Pages visitors to the pre-compiled /docs/ bundle
-      if (window.location.hostname.includes('github.io') && !window.location.pathname.includes('/docs')) {
-        var cleanPath = window.location.pathname.replace(/\/$/, '');
-        window.location.replace(cleanPath + '/docs/' + window.location.search + window.location.hash);
+    <script type="module">
+      const isDevServer =
+        window.location.hostname === 'localhost' ||
+        window.location.hostname === '127.0.0.1' ||
+        window.location.hostname.includes('run.app');
+
+      if (isDevServer) {
+        import('./src/main.tsx');
+      } else {
+        import('./assets/index-CnLXuYAt.js');
       }
     </script>
-    <script type="module" src="./src/main.tsx"></script>
   </body>
+
 </html>
 

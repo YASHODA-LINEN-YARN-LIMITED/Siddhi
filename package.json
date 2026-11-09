@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "tsx server.ts",
-    "build": "vite build && mkdir -p docs && cp -r dist/* docs/",
+    "build": "vite build && mkdir -p docs assets && cp -r dist/* docs/ && cp -r dist/assets/* assets/",
     "start": "tsx server.ts",
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
