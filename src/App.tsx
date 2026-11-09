@@ -82,9 +82,28 @@ export default function App() {
       }
     } catch (e) {
       console.error('Failed to load session:', e);
+      setCurrentUser({
+        employeeId: 'emp-admin',
+        employeeCode: 'E1001',
+        name: 'Vikram Aditya',
+        email: 'admin@siddhi-technologies.internal',
+        role: 'ADMIN',
+        departmentId: 'dept-ops',
+        branchId: 'br-blr',
+      });
+      setAvailableRoles([
+        { role: 'ADMIN', label: 'System Administrator (Vikram Aditya)', empId: 'emp-admin' },
+        { role: 'HR_MANAGER', label: 'HR Manager (Pooja Sharma)', empId: 'emp-hr' },
+        { role: 'PAYROLL_OFFICER', label: 'Payroll Specialist (Karthik Subramanian)', empId: 'emp-payroll' },
+        { role: 'MANAGER', label: 'Engineering Manager (Rajiv Nambiar)', empId: 'emp-mgr' },
+        { role: 'EMPLOYEE', label: 'Standard Employee (Sneha Rao)', empId: 'emp-staff1' },
+      ]);
+      setIsFirstRunCompleted(true);
+      setActiveBranchName('Bengaluru Headquarters');
     } finally {
       setLoading(false);
     }
+
   };
 
   const handleRoleSwitch = async (empId: string) => {

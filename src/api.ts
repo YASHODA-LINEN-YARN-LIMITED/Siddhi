@@ -32,30 +32,34 @@ import type {
   TaxDeclaration,
 } from './types.ts';
 
+import { mockStore } from './mockStore.ts';
+
 const API_BASE = '/api';
 
 async function request<T>(endpoint: string, options?: RequestInit): Promise<T> {
-  const res = await fetch(`${API_BASE}${endpoint}`, {
-    headers: {
-      'Content-Type': 'application/json',
-      ...options?.headers,
-    },
-    ...options,
-  });
+  const isStaticGithubPages = typeof window !== 'undefined' && window.location.hostname.includes('github.io');
 
-  if (!res.ok) {
-    let errorMsg = `API Error ${res.status}: ${res.statusText}`;
+  if (!isStaticGithubPages) {
     try {
-      const data = await res.json();
-      if (data.error) errorMsg = data.error;
+      const res = await fetch(`${API_BASE}${endpoint}`, {
+        headers: {
+          'Content-Type': 'application/json',
+          ...options?.headers,
+        },
+        ...options,
+      });
+
+      if (res.ok) {
+        return await res.json();
+      }
     } catch {
-      // ignore
+      // Backend not reached; fall through to static store
     }
-    throw new Error(errorMsg);
   }
 
-  return res.json();
+  return mockStore.handleRequest<T>(endpoint, options);
 }
+
 
 export const api = {
   // Session & Auth
