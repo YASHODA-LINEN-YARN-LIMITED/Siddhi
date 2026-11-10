@@ -166,6 +166,7 @@ export interface BiometricIntegrationSettings {
   name: string;
   enabled: boolean;
   apiBaseUrl: string; // e.g. https://vendorapi.com
+  googleWebAppUrl?: string;
   endpoint: string; // e.g. /attendance
   httpMethod: 'GET' | 'POST';
   authType: 'NONE' | 'BASIC' | 'BEARER' | 'API_KEY' | 'OAUTH2';

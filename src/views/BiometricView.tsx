@@ -20,6 +20,8 @@ import {
   Play,
   Info,
   HelpCircle,
+  FileCode,
+  Zap,
 } from 'lucide-react';
 import { api } from '../api.ts';
 import { notify } from '../utils/notify.ts';
@@ -33,22 +35,17 @@ export const BiometricView: React.FC = () => {
   const [syncing, setSyncing] = useState(false);
   const [clearing, setClearing] = useState(false);
   const [testing, setTesting] = useState(false);
-  const [simulatingWebhook, setSimulatingWebhook] = useState(false);
+  const [syncingSheet, setSyncingSheet] = useState(false);
   const [testResult, setTestResult] = useState<any>(null);
   const [syncResult, setSyncResult] = useState<any>(null);
   const [filterStatus, setFilterStatus] = useState<string>('ALL');
-  const [activeTab, setActiveTab] = useState<'realtime_cloud' | 'punches' | 'settings' | 'quarantine' | 'csv'>('realtime_cloud');
+  const [activeTab, setActiveTab] = useState<'google_sheets' | 'punches' | 'settings' | 'quarantine' | 'csv'>('google_sheets');
+  const [copiedGsScript, setCopiedGsScript] = useState(false);
   const [copiedUrl, setCopiedUrl] = useState(false);
-  const [copiedCurl, setCopiedCurl] = useState(false);
 
-  // Custom public backend host selection/override for Webhook
-  const isGithubPages = typeof window !== 'undefined' && window.location.hostname.includes('github.io');
-  const devServerUrl = 'https://ais-dev-xprdmpkiap2xlvjmybcnti-854403608887.asia-east1.run.app';
-  
-  const [selectedHostMode, setSelectedHostMode] = useState<'auto' | 'dev_server' | 'custom'>(
-    isGithubPages ? 'dev_server' : 'auto'
-  );
-  const [customHost, setCustomHost] = useState<string>('');
+  // User's Configured Google Apps Script Web App URL
+  const userWebUrl = 'https://script.google.com/macros/s/AKfycbzTjkabJcvZ1oSYdZMT2nyhdMq0B_cg65BRuaNW1GxuDXJXiQbxVdpwqKzzvrSMKtBEoA/exec';
+  const [googleWebAppUrl, setGoogleWebAppUrl] = useState<string>(userWebUrl);
 
   // Quarantine resolution modal state
   const [resolvingPunch, setResolvingPunch] = useState<RawBiometricPunch | null>(null);
@@ -58,95 +55,160 @@ export const BiometricView: React.FC = () => {
   const [csvContent, setCsvContent] = useState<string>('');
   const [csvFeedback, setCsvFeedback] = useState<string | null>(null);
 
-  // Determine active effective webhook URL
-  const getActiveWebhookUrl = () => {
-    if (selectedHostMode === 'dev_server') {
-      return `${devServerUrl}/api/biometric/webhook`;
+  const appsScriptCode = `/**
+ * SIDDHI HRMS & REALTIME BIOMETRIC GOOGLE APPS SCRIPT (Code.gs)
+ * Web App URL: ${googleWebAppUrl}
+ */
+
+function setupAutoSheets() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  
+  // 1. Raw_Punches sheet
+  let punchSheet = ss.getSheetByName('Raw_Punches');
+  if (!punchSheet) {
+    punchSheet = ss.insertSheet('Raw_Punches');
+    punchSheet.appendRow([
+      'Punch_ID', 'Employee_Code', 'Employee_Name', 'Log_Datetime', 
+      'Log_Date', 'Log_Time', 'Device_Serial', 'Downloaded_At', 'Status', 'Received_At'
+    ]);
+    punchSheet.getRange(1, 1, 1, 10).setFontWeight('bold').setBackground('#E8F5E9');
+  }
+  
+  // 2. Employees sheet
+  let empSheet = ss.getSheetByName('Employees');
+  if (!empSheet) {
+    empSheet = ss.insertSheet('Employees');
+    empSheet.appendRow([
+      'Employee_Code', 'First_Name', 'Last_Name', 'Department', 'Designation', 'Status'
+    ]);
+    empSheet.getRange(1, 1, 1, 6).setFontWeight('bold').setBackground('#E3F2FD');
+  }
+  
+  // 3. Daily_Attendance sheet
+  let attSheet = ss.getSheetByName('Daily_Attendance');
+  if (!attSheet) {
+    attSheet = ss.insertSheet('Daily_Attendance');
+    attSheet.appendRow([
+      'Date', 'Employee_Code', 'Employee_Name', 'First_In', 'Last_Out', 'Work_Hours', 'Status'
+    ]);
+    attSheet.getRange(1, 1, 1, 7).setFontWeight('bold').setBackground('#FFF8E1');
+  }
+  
+  // 4. Sync_Logs sheet
+  let logSheet = ss.getSheetByName('Sync_Logs');
+  if (!logSheet) {
+    logSheet = ss.insertSheet('Sync_Logs');
+    logSheet.appendRow(['Timestamp', 'Punches_Received', 'Status', 'Response_Details']);
+    logSheet.getRange(1, 1, 1, 4).setFontWeight('bold').setBackground('#F3E5F5');
+  }
+}
+
+function doPost(e) {
+  try {
+    setupAutoSheets();
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const punchSheet = ss.getSheetByName('Raw_Punches');
+    
+    let contents = [];
+    if (e && e.postData && e.postData.contents) {
+      const data = JSON.parse(e.postData.contents);
+      contents = Array.isArray(data) ? data : [data];
     }
-    if (selectedHostMode === 'custom' && customHost.trim()) {
-      const cleanHost = customHost.trim().replace(/\/$/, '');
-      return `${cleanHost}/api/biometric/webhook`;
+    
+    const nowStr = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd HH:mm:ss");
+    let addedCount = 0;
+    
+    for (let i = 0; i < contents.length; i++) {
+      const p = contents[i];
+      const empCode = String(p.employee_code || p.emp_code || p.UserId || '').trim();
+      if (!empCode) continue;
+      
+      const empName = String(p.employee_name || p.UserName || '').trim();
+      const logDt = String(p.log_datetime || p.LogDateTime || nowStr).trim();
+      const logDate = String(p.log_date || logDt.split(' ')[0] || '').trim();
+      const logTime = String(p.log_time || logDt.split(' ')[1] || '').trim();
+      const deviceSn = String(p.device_sn || p.DeviceSN || 'REALTIME-DEVICE').trim();
+      const downloadedAt = String(p.downloaded_at || nowStr).trim();
+      const punchId = 'P-' + Date.now() + '-' + Math.floor(Math.random() * 1000);
+      
+      punchSheet.appendRow([
+        punchId, empCode, empName, logDt, logDate, logTime, deviceSn, downloadedAt, 'PROCESSED', nowStr
+      ]);
+      addedCount++;
     }
-    if (typeof window !== 'undefined') {
-      return `${window.location.origin}/api/biometric/webhook`;
+    
+    return ContentService.createTextOutput(JSON.stringify({
+      status: 'SUCCESS',
+      code: 200,
+      message: 'Ingested ' + addedCount + ' punch(es) into Google Sheet',
+      receivedAt: nowStr
+    })).setMimeType(ContentService.MimeType.JSON);
+  } catch (err) {
+    return ContentService.createTextOutput(JSON.stringify({
+      status: 'ERROR',
+      code: 500,
+      error: err.toString()
+    })).setMimeType(ContentService.MimeType.JSON);
+  }
+}
+
+function doGet(e) {
+  setupAutoSheets();
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const punchSheet = ss.getSheetByName('Raw_Punches');
+  const data = punchSheet.getDataRange().getValues();
+  
+  const punches = [];
+  for (let r = 1; r < data.length; r++) {
+    punches.push({
+      employee_code: String(data[r][1]),
+      employee_name: String(data[r][2]),
+      log_datetime: String(data[r][3]),
+      log_date: String(data[r][4]),
+      log_time: String(data[r][5]),
+      device_sn: String(data[r][6]),
+      downloaded_at: String(data[r][7]),
+      status: String(data[r][8])
+    });
+  }
+  
+  return ContentService.createTextOutput(JSON.stringify(punches))
+    .setMimeType(ContentService.MimeType.JSON);
+}`;
+
+  const handleCopyGsScript = () => {
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(appsScriptCode);
+      setCopiedGsScript(true);
+      notify('Code.gs Google Apps Script copied to clipboard!', 'success');
+      setTimeout(() => setCopiedGsScript(false), 3000);
     }
-    return 'http://localhost:3000/api/biometric/webhook';
   };
 
-  const webhookUrl = getActiveWebhookUrl();
-
-  const sampleCurlCommand = `curl -X POST "${webhookUrl}" \\
-  -H "Content-Type: application/json" \\
-  -d '[
-    {
-      "employee_code": "1001",
-      "employee_name": "Yashoda Operative",
-      "log_datetime": "${new Date().toISOString().replace('T', ' ').substring(0, 19)}",
-      "log_date": "${new Date().toISOString().substring(0, 10)}",
-      "log_time": "${new Date().toTimeString().substring(0, 8)}",
-      "downloaded_at": "${new Date().toISOString().replace('T', ' ').substring(0, 19)}",
-      "device_sn": "RT-T502-8849"
-    }
-  ]'`;
-
-  const handleCopyWebhookUrl = () => {
+  const handleCopyWebUrl = () => {
     if (navigator.clipboard) {
-      navigator.clipboard.writeText(webhookUrl);
+      navigator.clipboard.writeText(googleWebAppUrl);
       setCopiedUrl(true);
-      notify('Webhook URL copied to clipboard', 'success');
+      notify('Google Apps Script Web App URL copied!', 'success');
       setTimeout(() => setCopiedUrl(false), 3000);
     }
   };
 
-  const handleCopyCurl = () => {
-    if (navigator.clipboard) {
-      navigator.clipboard.writeText(sampleCurlCommand);
-      setCopiedCurl(true);
-      notify('Sample cURL command copied to clipboard', 'success');
-      setTimeout(() => setCopiedCurl(false), 3000);
+  const handleSyncGoogleSheet = async () => {
+    if (!googleWebAppUrl.trim()) {
+      notify('Please enter your Google Apps Script Web App URL', 'error');
+      return;
     }
-  };
-
-  const handleSimulateWebhookPunch = async () => {
     try {
-      setSimulatingWebhook(true);
-      const nowIso = new Date().toISOString().replace('T', ' ').substring(0, 19);
-      const dateStr = nowIso.split(' ')[0];
-      const timeStr = nowIso.split(' ')[1];
-
-      // Pick an employee code or default to 1001
-      const empCode = employees[0]?.employeeCode || '1001';
-
-      const payload = [
-        {
-          employee_code: empCode,
-          employee_name: employees[0] ? `${employees[0].firstName} ${employees[0].lastName}` : 'Yashoda Operative',
-          log_datetime: nowIso,
-          log_date: dateStr,
-          log_time: timeStr,
-          downloaded_at: nowIso,
-          device_sn: 'REALTIME-CLOUD-T502',
-        },
-      ];
-
-      const res = await fetch('/api/biometric/webhook', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-
-      const data = await res.json();
-      if (res.ok && data.status === 'SUCCESS') {
-        notify(`Simulated punch ingested! Employee: ${empCode} at ${timeStr}`, 'success');
-        await loadData();
-        setActiveTab('punches');
-      } else {
-        notify(`Simulation failed: ${data.error || 'Unknown error'}`, 'error');
-      }
-    } catch (e: any) {
-      notify(`Simulation request failed: ${e.message}`, 'error');
+      setSyncingSheet(true);
+      const res = await api.syncGoogleSheet({ webAppUrl: googleWebAppUrl });
+      notify(res.message, 'success');
+      await loadData();
+      setActiveTab('punches');
+    } catch (err: any) {
+      notify(`Google Sheet sync failed: ${err.message}`, 'error');
     } finally {
-      setSimulatingWebhook(false);
+      setSyncingSheet(false);
     }
   };
 
@@ -189,10 +251,16 @@ export const BiometricView: React.FC = () => {
     try {
       setTesting(true);
       setTestResult(null);
-      const res = await api.testBiometricConnection();
-      setTestResult(res);
+      const res = await api.syncGoogleSheet({ webAppUrl: googleWebAppUrl });
+      setTestResult({
+        success: true,
+        testedAt: new Date().toISOString(),
+        message: `Successfully connected to Google Apps Script Web App! ${res.punchesCount || 0} punch(es) checked.`,
+      });
+      notify('Google Apps Script connection verified!', 'success');
     } catch (e: any) {
-      setTestResult({ success: false, message: e.message });
+      setTestResult({ success: false, message: `Connection test failed: ${e.message}`, testedAt: new Date().toISOString() });
+      notify(`Connection failed: ${e.message}`, 'error');
     } finally {
       setTesting(false);
     }
@@ -202,11 +270,13 @@ export const BiometricView: React.FC = () => {
     try {
       setSyncing(true);
       setSyncResult(null);
-      const res = await api.syncBiometricNow();
+      const res = await api.syncGoogleSheet({ webAppUrl: googleWebAppUrl });
       setSyncResult(res);
+      notify(res.message, 'success');
       await loadData();
     } catch (e: any) {
       setSyncResult({ success: false, message: e.message });
+      notify(`Sync failed: ${e.message}`, 'error');
     } finally {
       setSyncing(false);
     }
@@ -266,81 +336,47 @@ export const BiometricView: React.FC = () => {
             Biometric Attendance Integration
           </h1>
           <p className="text-xs text-slate-500 mt-0.5">
-            Realtime Machine live push listener & API connector
+            Google Sheets & Apps Script Web App Automated Biometric Connector
           </p>
         </div>
 
         <div className="flex items-center gap-2">
-          <button
-            onClick={handleSimulateWebhookPunch}
-            disabled={simulatingWebhook}
-            className="px-3 py-2 text-xs font-semibold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 rounded-lg transition-colors flex items-center gap-1.5 shadow-2xs"
-          >
-            <Play className={`h-4 w-4 text-emerald-600 ${simulatingWebhook ? 'animate-spin' : ''}`} />
-            <span>{simulatingWebhook ? 'Simulating...' : 'Simulate Webhook Punch'}</span>
-          </button>
-
           <button
             onClick={handleTestConnection}
             disabled={testing}
             className="px-3 py-2 text-xs font-medium text-slate-700 bg-white hover:bg-slate-50 border border-slate-300 rounded-lg transition-colors flex items-center gap-1.5 shadow-2xs"
           >
             <Server className={`h-4 w-4 ${testing ? 'animate-spin' : 'text-slate-600'}`} />
-            <span>{testing ? 'Testing...' : 'Test Connection'}</span>
+            <span>{testing ? 'Testing...' : 'Test Web App Connection'}</span>
           </button>
 
           <button
             onClick={handleSyncNow}
             disabled={syncing}
-            className="px-3.5 py-2 text-xs font-semibold text-white bg-slate-900 hover:bg-slate-800 rounded-lg transition-colors flex items-center gap-1.5 shadow-xs"
+            className="px-3.5 py-2 text-xs font-semibold text-white bg-emerald-700 hover:bg-emerald-800 rounded-lg transition-colors flex items-center gap-1.5 shadow-xs"
           >
-            <RefreshCw className={`h-4 w-4 text-emerald-400 ${syncing ? 'animate-spin' : ''}`} />
-            <span>{syncing ? 'Syncing...' : 'Sync Now'}</span>
+            <RefreshCw className={`h-4 w-4 text-emerald-200 ${syncing ? 'animate-spin' : ''}`} />
+            <span>{syncing ? 'Syncing...' : 'Sync Google Sheet Now'}</span>
           </button>
         </div>
       </div>
 
-      {/* GitHub Pages Host Warning Banner */}
-      {isGithubPages && (
-        <div className="rounded-xl border-2 border-amber-300 bg-amber-50 p-4 text-xs text-amber-950 space-y-2 shadow-2xs">
-          <div className="flex items-center gap-2 font-bold text-amber-900 text-sm">
-            <AlertTriangle className="h-5 w-5 text-amber-600 shrink-0" />
-            <span>GitHub Pages Endpoint Notice (`github.io`)</span>
-          </div>
-          <p className="text-xs text-amber-900 leading-relaxed">
-            GitHub Pages (<code className="bg-amber-100/80 px-1 py-0.5 rounded font-mono font-bold">yashoda-linen-yarn-limited.github.io</code>) serves static frontend assets only. It cannot execute backend code or listen for HTTP POST requests from Realtime Biometric hardware (hence returning 404/405 errors).
-          </p>
-          <div className="bg-white/80 p-3 rounded-lg border border-amber-200 space-y-1.5 font-sans">
-            <div className="font-semibold text-slate-900">How to fix your Realtime Biometric Push setup:</div>
-            <ul className="list-disc list-inside space-y-1 text-2xs text-slate-700">
-              <li>
-                <strong>Option A (Live Dev Application):</strong> Point Realtime Cloud to your active server host at <code className="bg-slate-100 px-1 py-0.5 rounded font-mono text-emerald-800 font-bold">{devServerUrl}/api/biometric/webhook</code>.
-              </li>
-              <li>
-                <strong>Option B (Local/On-Premises Server):</strong> Run <code className="bg-slate-100 px-1 py-0.5 rounded font-mono">npm run dev</code> on your local server and use Cloudflare Tunnel or ngrok to create an HTTPS URL.
-              </li>
-              <li>
-                <strong>Option C (Instant Webhook Test):</strong> Click the <strong>"Simulate Webhook Punch"</strong> button above to test real punch processing directly!
-              </li>
-            </ul>
-          </div>
-        </div>
-      )}
-
-      {/* Live Webhook Active Status */}
-      <div className="rounded-xl border border-emerald-300 bg-emerald-50/80 p-3.5 text-xs text-emerald-950 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+      {/* Live Google Sheets Connected Banner */}
+      <div className="rounded-xl border border-emerald-300 bg-emerald-50/90 p-3.5 text-xs text-emerald-950 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs">
         <div className="flex items-center gap-2.5">
           <div className="h-2.5 w-2.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
-          <span className="font-semibold text-emerald-900">Realtime Machine Webhook Listener: Active</span>
+          <span className="font-bold text-emerald-900">Google Sheets Web App Connector: Connected</span>
           <span className="text-slate-400 hidden sm:inline">·</span>
-          <span className="text-2xs text-emerald-800 font-mono hidden sm:inline">Endpoint: /api/biometric/webhook</span>
+          <span className="text-2xs text-emerald-800 font-mono hidden sm:inline truncate max-w-md">
+            URL: {googleWebAppUrl}
+          </span>
         </div>
         <button
           onClick={loadData}
-          className="px-3 py-1.5 text-xs font-semibold text-emerald-900 bg-white hover:bg-emerald-100/60 border border-emerald-300 rounded-lg transition-colors flex items-center gap-1.5 self-start sm:self-auto shadow-2xs"
+          className="px-3 py-1.5 text-xs font-semibold text-emerald-900 bg-white hover:bg-emerald-100/80 border border-emerald-300 rounded-lg transition-colors flex items-center gap-1.5 self-start sm:self-auto shadow-2xs"
         >
           <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
-          <span>Refresh Live Punches ({rawPunches.length})</span>
+          <span>Refresh Punches ({rawPunches.length})</span>
         </button>
       </div>
 
@@ -361,10 +397,10 @@ export const BiometricView: React.FC = () => {
       )}
 
       {syncResult && (
-        <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 p-4 text-xs text-emerald-950 space-y-1">
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50/80 p-4 text-xs text-emerald-950 space-y-1">
           <div className="font-semibold flex items-center gap-1.5">
             <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-            <span>Manual Sync Completed</span>
+            <span>Google Sheet Sync Completed</span>
           </div>
           <p className="text-2xs text-emerald-800">{syncResult.message}</p>
         </div>
@@ -373,13 +409,13 @@ export const BiometricView: React.FC = () => {
       {/* Tabs */}
       <div className="flex flex-wrap items-center gap-2 border-b border-slate-200 pb-2">
         <button
-          onClick={() => setActiveTab('realtime_cloud')}
-          className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors flex items-center gap-1.5 ${
-            activeTab === 'realtime_cloud' ? 'bg-emerald-700 text-white shadow-xs' : 'text-slate-700 bg-white border border-slate-200 hover:bg-slate-50'
+          onClick={() => setActiveTab('google_sheets')}
+          className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5 ${
+            activeTab === 'google_sheets' ? 'bg-emerald-800 text-white shadow-xs' : 'text-emerald-900 bg-emerald-50 border border-emerald-300 hover:bg-emerald-100'
           }`}
         >
-          <Radio className="h-3.5 w-3.5 text-emerald-300" />
-          <span>Realtime Cloud Machine Sync</span>
+          <FileSpreadsheet className="h-3.5 w-3.5 text-emerald-300" />
+          <span>Google Sheets & Apps Script Connector</span>
         </button>
 
         <button
@@ -424,229 +460,90 @@ export const BiometricView: React.FC = () => {
         </button>
       </div>
 
-      {/* TAB: Realtime Cloud Live Sync */}
-      {activeTab === 'realtime_cloud' && (
+      {/* TAB: Google Sheets & Apps Script Connector */}
+      {activeTab === 'google_sheets' && (
         <div className="space-y-6">
-          {/* Webhook Endpoint Card */}
-          <div className="bg-white border-2 border-emerald-600/30 rounded-xl p-5 shadow-2xs space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          {/* Card 1: Active Web App URL */}
+          <div className="bg-white border-2 border-emerald-600/40 rounded-xl p-5 shadow-2xs space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
               <div>
-                <div className="flex items-center gap-2">
-                  <h2 className="text-sm font-bold text-slate-900">Realtime Machine Live Data Ingestion Gateway</h2>
-                  <span className="text-2xs font-bold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded uppercase">
-                    Live Webhook Active
-                  </span>
-                </div>
+                <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                  <FileSpreadsheet className="h-5 w-5 text-emerald-600" />
+                  <span>Google Apps Script Web App Endpoint</span>
+                </h2>
+                <p className="text-2xs text-slate-500 mt-0.5">
+                  Biometric devices push to your Google Sheet script, and Siddhi HRMS pulls live punches directly from this Web App URL.
+                </p>
               </div>
-
-              <div className="flex items-center gap-2 self-start sm:self-auto">
-                <button
-                  onClick={handleClearPunches}
-                  disabled={clearing}
-                  className="px-3 py-1.5 text-xs font-medium text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg transition-colors flex items-center gap-1.5"
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                  <span>{clearing ? 'Clearing...' : 'Clear Punch History'}</span>
-                </button>
-              </div>
+              <span className="text-2xs font-bold text-emerald-800 bg-emerald-100 px-3 py-1 rounded-full uppercase shrink-0">
+                Active Integration Endpoint
+              </span>
             </div>
 
-            {/* Server Webhook Host Selector */}
-            <div className="space-y-3 bg-slate-50 p-4 rounded-xl border border-slate-200">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                <label className="text-xs font-semibold text-slate-800">Select Target Server Host for Webhook:</label>
-                <div className="flex flex-wrap items-center gap-2 text-2xs">
-                  <label className="flex items-center gap-1 cursor-pointer font-medium text-slate-700">
-                    <input
-                      type="radio"
-                      name="hostMode"
-                      checked={selectedHostMode === 'dev_server'}
-                      onChange={() => setSelectedHostMode('dev_server')}
-                    />
-                    <span>Live App Server (Recommended)</span>
-                  </label>
-
-                  <label className="flex items-center gap-1 cursor-pointer font-medium text-slate-700 ml-2">
-                    <input
-                      type="radio"
-                      name="hostMode"
-                      checked={selectedHostMode === 'auto'}
-                      onChange={() => setSelectedHostMode('auto')}
-                    />
-                    <span>Browser Default</span>
-                  </label>
-
-                  <label className="flex items-center gap-1 cursor-pointer font-medium text-slate-700 ml-2">
-                    <input
-                      type="radio"
-                      name="hostMode"
-                      checked={selectedHostMode === 'custom'}
-                      onChange={() => setSelectedHostMode('custom')}
-                    />
-                    <span>Custom Host</span>
-                  </label>
-                </div>
-              </div>
-
-              {selectedHostMode === 'custom' && (
-                <div className="space-y-1">
-                  <input
-                    type="text"
-                    value={customHost}
-                    onChange={(e) => setCustomHost(e.target.value)}
-                    placeholder="https://your-custom-backend-server.com"
-                    className="w-full bg-white border border-slate-300 rounded-lg px-3 py-1.5 text-xs font-mono"
-                  />
-                  <p className="text-2xs text-slate-400">Enter your live server domain or Cloudflare Tunnel HTTPS URL</p>
-                </div>
-              )}
-
-              <div className="space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <label className="text-2xs font-semibold text-slate-700">Calculated Webhook URL to paste in Realtime Cloud:</label>
-                  <span className="text-2xs font-bold text-emerald-700">Ready for POST & GET</span>
-                </div>
+            <div className="space-y-2">
+              <label className="text-xs font-semibold text-slate-800">Your Google Apps Script Web App URL:</label>
+              <div className="flex flex-col sm:flex-row items-stretch gap-2">
+                <input
+                  type="text"
+                  value={googleWebAppUrl}
+                  onChange={(e) => setGoogleWebAppUrl(e.target.value)}
+                  placeholder="https://script.google.com/macros/s/.../exec"
+                  className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-xs font-mono font-bold text-slate-900 select-all"
+                />
                 <div className="flex items-center gap-2">
-                  <input
-                    type="text"
-                    readOnly
-                    value={webhookUrl}
-                    className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-xs font-mono text-slate-900 font-bold select-all"
-                  />
                   <button
-                    onClick={handleCopyWebhookUrl}
-                    className="px-4 py-2 text-xs font-semibold text-white bg-slate-900 hover:bg-slate-800 rounded-lg transition-colors flex items-center gap-1.5 shrink-0 shadow-xs"
+                    onClick={handleCopyWebUrl}
+                    className="px-3.5 py-2 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 border border-slate-300 rounded-lg transition-colors flex items-center gap-1.5 shrink-0 shadow-2xs"
                   >
-                    {copiedUrl ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
-                    <span>{copiedUrl ? 'Copied' : 'Copy Webhook URL'}</span>
+                    {copiedUrl ? <Check className="h-4 w-4 text-emerald-600" /> : <Copy className="h-4 w-4" />}
+                    <span>{copiedUrl ? 'Copied' : 'Copy URL'}</span>
+                  </button>
+
+                  <button
+                    onClick={handleSyncGoogleSheet}
+                    disabled={syncingSheet || !googleWebAppUrl.trim()}
+                    className="px-5 py-2 text-xs font-semibold text-white bg-emerald-700 hover:bg-emerald-800 disabled:opacity-50 rounded-lg transition-colors flex items-center gap-1.5 shrink-0 shadow-xs justify-center"
+                  >
+                    <RefreshCw className={`h-4 w-4 ${syncingSheet ? 'animate-spin' : ''}`} />
+                    <span>{syncingSheet ? 'Syncing...' : 'Sync Sheet Now'}</span>
                   </button>
                 </div>
               </div>
             </div>
-
-            {/* Test Simulation Box */}
-            <div className="bg-slate-900 text-slate-100 p-4 rounded-xl space-y-2 text-xs">
-              <div className="flex items-center justify-between">
-                <span className="font-bold text-emerald-400 flex items-center gap-1.5">
-                  <TerminalIcon className="h-4 w-4" />
-                  Terminal & Postman Test Command (cURL)
-                </span>
-                <button
-                  onClick={handleCopyCurl}
-                  className="px-3 py-1 text-2xs font-medium text-slate-900 bg-emerald-400 hover:bg-emerald-300 rounded transition-colors"
-                >
-                  {copiedCurl ? 'Copied cURL' : 'Copy cURL Command'}
-                </button>
-              </div>
-              <pre className="text-2xs font-mono bg-black/60 p-3 rounded-lg overflow-x-auto text-emerald-300 border border-slate-800 leading-relaxed">
-                {sampleCurlCommand}
-              </pre>
-            </div>
           </div>
 
-          {/* Configuration Mapping Matrix matching Realtime India Portal */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Left: General Settings */}
-            <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-2xs space-y-4 text-xs">
-              <div className="border-b border-slate-100 pb-3">
-                <h3 className="font-bold text-slate-900 text-xs flex items-center gap-2">
-                  <span className="flex h-5 w-5 items-center justify-center rounded-full bg-slate-900 text-white font-bold text-2xs">1</span>
-                  <span>Realtime Cloud Portal Settings</span>
-                </h3>
+          {/* Card 2: Code.gs Script Backup Generator */}
+          <div className="bg-slate-900 text-slate-100 rounded-xl p-5 shadow-sm space-y-4 text-xs">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-3">
+              <div>
+                <div className="font-bold text-sm text-emerald-400 flex items-center gap-2">
+                  <FileCode className="h-4 w-4" />
+                  <span>Google Apps Script Code (`Code.gs`)</span>
+                </div>
+                <p className="text-2xs text-slate-400 mt-0.5">
+                  Your Google Apps Script automatically builds sheets (`Raw_Punches`, `Employees`, `Daily_Attendance`, `Sync_Logs`) and formats headers.
+                </p>
               </div>
-
-              <div className="space-y-3">
-                <div className="flex items-center justify-between p-2 rounded bg-slate-50 border border-slate-200">
-                  <span className="text-slate-600 font-medium">API Type</span>
-                  <span className="font-mono font-bold text-slate-900 bg-white px-2 py-0.5 rounded border border-slate-200">Third Party Api</span>
-                </div>
-
-                <div className="flex items-center justify-between p-2 rounded bg-slate-50 border border-slate-200">
-                  <span className="text-slate-600 font-medium">Request Method</span>
-                  <span className="font-mono font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">POST (Recommended) or GET</span>
-                </div>
-
-                <div className="flex items-center justify-between p-2 rounded bg-slate-50 border border-slate-200">
-                  <span className="text-slate-600 font-medium">Authorization Auth Type</span>
-                  <span className="font-mono font-bold text-slate-900 bg-white px-2 py-0.5 rounded border border-slate-200">No Auth</span>
-                </div>
-
-                <div className="flex items-center justify-between p-2 rounded bg-slate-50 border border-slate-200">
-                  <span className="text-slate-600 font-medium">Content-Type</span>
-                  <span className="font-mono font-bold text-slate-900 bg-white px-2 py-0.5 rounded border border-slate-200">application/json</span>
-                </div>
-
-                <div className="flex items-center justify-between p-2 rounded bg-slate-50 border border-slate-200">
-                  <span className="text-slate-600 font-medium">Data Sending Format</span>
-                  <span className="font-mono font-bold text-slate-900 bg-white px-2 py-0.5 rounded border border-slate-200">Body</span>
-                </div>
-
-                <div className="flex items-center justify-between p-2.5 rounded bg-emerald-50/70 border border-emerald-200">
-                  <span className="text-emerald-950 font-semibold">Active Parallel Third-party API Transfer</span>
-                  <span className="text-2xs font-bold text-white bg-emerald-700 px-2 py-0.5 rounded">Checked [✓]</span>
-                </div>
-              </div>
+              <button
+                onClick={handleCopyGsScript}
+                className="px-4 py-2 text-xs font-semibold text-slate-900 bg-emerald-400 hover:bg-emerald-300 rounded-lg transition-colors flex items-center gap-1.5 shrink-0 self-start sm:self-auto shadow-xs"
+              >
+                {copiedGsScript ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                <span>{copiedGsScript ? 'Copied Code.gs!' : 'Copy Code.gs Script'}</span>
+              </button>
             </div>
 
-            {/* Right: Parameter Fields */}
-            <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-2xs space-y-4 text-xs">
-              <div className="border-b border-slate-100 pb-3">
-                <h3 className="font-bold text-slate-900 text-xs flex items-center gap-2">
-                  <span className="flex h-5 w-5 items-center justify-center rounded-full bg-slate-900 text-white font-bold text-2xs">2</span>
-                  <span>Realtime Parameter Mapping Checkbox List</span>
-                </h3>
-              </div>
-
-              <div className="space-y-2">
-                <div className="p-2 rounded bg-slate-50 border border-slate-200 flex items-center justify-between">
-                  <div>
-                    <div className="font-bold text-slate-800">For Emp.Code & Name</div>
-                    <div className="text-2xs font-mono text-slate-500">employee_code (Int or String, 8 Digits)</div>
-                  </div>
-                  <span className="text-emerald-700 font-bold">✓ Checked</span>
-                </div>
-
-                <div className="p-2 rounded bg-slate-50 border border-slate-200 flex items-center justify-between">
-                  <div>
-                    <div className="font-bold text-slate-800">Log Date Time</div>
-                    <div className="text-2xs font-mono text-slate-500">log_datetime (Format: yyyy-MM-dd HH:mm:ss)</div>
-                  </div>
-                  <span className="text-emerald-700 font-bold">✓ Checked</span>
-                </div>
-
-                <div className="p-2 rounded bg-slate-50 border border-slate-200 flex items-center justify-between">
-                  <div>
-                    <div className="font-bold text-slate-800">Log Date & Time</div>
-                    <div className="text-2xs font-mono text-slate-500">log_date (yyyy-MM-dd) · log_time (HH:mm:ss)</div>
-                  </div>
-                  <span className="text-emerald-700 font-bold">✓ Checked</span>
-                </div>
-
-                <div className="p-2 rounded bg-slate-50 border border-slate-200 flex items-center justify-between">
-                  <div>
-                    <div className="font-bold text-slate-800">Download Date Time</div>
-                    <div className="text-2xs font-mono text-slate-500">downloaded_at (yyyy-MM-dd HH:mm:ss)</div>
-                  </div>
-                  <span className="text-emerald-700 font-bold">✓ Checked</span>
-                </div>
-
-                <div className="p-2 rounded bg-slate-50 border border-slate-200 flex items-center justify-between">
-                  <div>
-                    <div className="font-bold text-slate-800">Device Serial No</div>
-                    <div className="text-2xs font-mono text-slate-500">device_sn</div>
-                  </div>
-                  <span className="text-emerald-700 font-bold">✓ Checked</span>
-                </div>
-              </div>
-            </div>
+            <pre className="text-2xs font-mono bg-black/70 p-4 rounded-lg overflow-x-auto text-emerald-300 border border-slate-800 max-h-[260px] leading-relaxed select-all">
+              {appsScriptCode}
+            </pre>
           </div>
 
-          {/* Historical Data Export Step */}
+          {/* Card 3: Direct Navigation */}
           <div className="bg-slate-900 text-white rounded-xl p-5 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4 text-xs">
             <div className="space-y-1">
-              <div className="font-bold text-sm text-emerald-400">Step 3: Transfer Historical Machine Data</div>
+              <div className="font-bold text-sm text-emerald-400">View Synced Biometric Records</div>
               <div className="text-slate-300 text-xs">
-                In Realtime Cloud, go to <strong>"MANUAL DATA EXPORT IN PARALLEL DATABASE"</strong>, choose your <strong>From Date</strong> and <strong>To Date</strong>, and click the orange <strong>"Upload Data"</strong> button.
+                All punches received from your Google Sheet Web App are processed and logged in real-time under Raw Punch History.
               </div>
             </div>
             <button
@@ -680,8 +577,15 @@ export const BiometricView: React.FC = () => {
               </div>
             </div>
 
-            <div className="text-2xs text-slate-500">
-              Last Sync: {settings?.lastSyncAt || 'Never'} · Cursor: {settings?.syncCursor || 'None'}
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleClearPunches}
+                disabled={clearing}
+                className="px-3 py-1.5 text-xs font-medium text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg transition-colors flex items-center gap-1.5"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                <span>{clearing ? 'Clearing...' : 'Clear Punch History'}</span>
+              </button>
             </div>
           </div>
 
@@ -703,9 +607,9 @@ export const BiometricView: React.FC = () => {
                   <tr>
                     <td colSpan={7} className="py-12 text-center text-slate-500 font-sans text-xs">
                       <div className="flex flex-col items-center justify-center gap-1.5">
-                        <Radio className="h-5 w-5 text-emerald-600 animate-pulse" />
-                        <span className="font-semibold text-slate-700">Waiting for live biometric punches</span>
-                        <span className="text-2xs text-slate-400 font-mono">Punches from your Realtime terminal push directly to {webhookUrl}</span>
+                        <FileSpreadsheet className="h-6 w-6 text-emerald-600 animate-pulse" />
+                        <span className="font-semibold text-slate-700">Waiting for Google Sheet biometric punches</span>
+                        <span className="text-2xs text-slate-400 font-mono">Click "Sync Sheet Now" above to pull punches directly from your Google Sheet</span>
                       </div>
                     </td>
                   </tr>
@@ -1000,20 +904,3 @@ export const BiometricView: React.FC = () => {
     </div>
   );
 };
-
-function TerminalIcon(props: React.SVGProps<SVGSVGElement>) {
-  return (
-    <svg
-      {...props}
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      viewBox="0 0 24 24"
-    >
-      <polyline points="4 17 10 11 4 5" />
-      <line x1="12" y1="19" x2="20" y2="19" />
-    </svg>
-  );
-}

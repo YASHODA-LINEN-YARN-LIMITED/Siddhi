@@ -686,8 +686,46 @@ apiRouter.post('/biometric/test-connection', (_req, res) => {
 apiRouter.post('/biometric/sync-now', async (_req, res) => {
   const store = db.get();
   const cfg = store.biometricSettings;
+  const userGoogleWebAppUrl = cfg.googleWebAppUrl || 'https://script.google.com/macros/s/AKfycbzTjkabJcvZ1oSYdZMT2nyhdMq0B_cg65BRuaNW1GxuDXJXiQbxVdpwqKzzvrSMKtBEoA/exec';
 
-  // If user configured a custom machine/cloud pull URL, attempt to pull from it directly
+  // 1. Attempt to pull from configured Google Apps Script Web App URL
+  if (userGoogleWebAppUrl && userGoogleWebAppUrl.startsWith('http')) {
+    try {
+      const response = await fetch(userGoogleWebAppUrl, {
+        method: 'GET',
+        headers: { Accept: 'application/json, text/csv, */*' },
+      });
+      if (response.ok) {
+        const text = await response.text();
+        let jsonData: any = [];
+        let pulledPunches: any[] = [];
+        try {
+          jsonData = JSON.parse(text);
+          pulledPunches = extractRealtimePunches(jsonData, {});
+        } catch {
+          pulledPunches = BiometricService.parseCsvPunches(text);
+        }
+
+        if (pulledPunches.length > 0) {
+          const result = BiometricService.processPunches(pulledPunches, 'GOOGLE_SHEETS_SYNC');
+          store.biometricSettings.lastSyncAt = new Date().toISOString().replace('T', ' ').substring(0, 19);
+          store.biometricSettings.recordsSyncedLastRun = result.processed;
+          store.biometricSettings.lastSyncStatus = 'SUCCESS';
+          db.save();
+
+          return res.json({
+            success: true,
+            summary: result,
+            message: `Successfully synced ${result.processed} punch(es) directly from your Google Sheet Web App (${userGoogleWebAppUrl}).`,
+          });
+        }
+      }
+    } catch (e: any) {
+      console.error('Google Apps Script pull error:', e.message);
+    }
+  }
+
+  // 2. Direct vendor API pull fallback
   if (cfg.apiBaseUrl && cfg.apiBaseUrl.startsWith('http') && !cfg.apiBaseUrl.includes('vendorapi.com')) {
     try {
       const targetUrl = `${cfg.apiBaseUrl.replace(/\/$/, '')}/${(cfg.endpoint || '').replace(/^\//, '')}`;
@@ -698,18 +736,7 @@ apiRouter.post('/biometric/sync-now', async (_req, res) => {
       if (cfg.authType === 'BEARER' && cfg.authCredentials?.token) {
         headers['Authorization'] = `Bearer ${cfg.authCredentials.token}`;
       }
-      const fetchOpts: RequestInit = {
-        method: cfg.httpMethod || 'GET',
-        headers,
-      };
-      if (cfg.httpMethod === 'POST' && cfg.requestBodyTemplate) {
-        const nowIso = new Date().toISOString().replace('T', ' ').substring(0, 19);
-        const startIso = new Date(Date.now() - 7 * 86400000).toISOString().replace('T', ' ').substring(0, 19);
-        fetchOpts.body = cfg.requestBodyTemplate
-          .replace('{{START_TIME}}', startIso)
-          .replace('{{END_TIME}}', nowIso);
-      }
-      const response = await fetch(targetUrl, fetchOpts);
+      const response = await fetch(targetUrl, { method: cfg.httpMethod || 'GET', headers });
       if (response.ok) {
         const payload = await response.json();
         const pulledPunches = extractRealtimePunches(payload, {});
@@ -727,9 +754,6 @@ apiRouter.post('/biometric/sync-now', async (_req, res) => {
     }
   }
 
-  const tunnelUrl = getPublicTunnelUrl();
-  const fullWebhook = tunnelUrl ? `${tunnelUrl}/api/biometric/webhook` : '/api/biometric/webhook';
-
   res.json({
     success: true,
     summary: {
@@ -737,9 +761,9 @@ apiRouter.post('/biometric/sync-now', async (_req, res) => {
       processed: store.rawBiometricPunches.filter((p) => p.status === 'PROCESSED').length,
       quarantined: store.rawBiometricPunches.filter((p) => p.status === 'QUARANTINED').length,
       duplicatesIgnored: 0,
-      batchId: `live-status-${Date.now()}`,
+      batchId: `google-sync-${Date.now()}`,
     },
-    message: `Live Machine Webhook active (${fullWebhook}). Currently holding ${store.rawBiometricPunches.length} real machine punch(es) and ${store.employees.length} enrolled employee(s).`,
+    message: `Google Sheet Web App sync active (${userGoogleWebAppUrl}). Holding ${store.rawBiometricPunches.length} punch(es) and ${store.employees.length} employee(s).`,
   });
 });
 
@@ -1008,6 +1032,85 @@ apiRouter.post('/biometric/csv-upload', (req, res) => {
     });
   } catch (e: any) {
     res.status(400).json({ error: e.message || 'Failed to parse biometric CSV' });
+  }
+});
+
+apiRouter.post('/biometric/sync-google-sheet', async (req, res) => {
+  const { sheetUrl, webAppUrl } = req.body;
+  const targetUrl = webAppUrl || sheetUrl;
+
+  if (!targetUrl || !targetUrl.trim()) {
+    return res.status(400).json({ error: 'Please provide a valid Google Apps Script Web App URL or Google Sheet CSV URL' });
+  }
+
+  try {
+    const cleanUrl = targetUrl.trim();
+    const fetchRes = await fetch(cleanUrl, {
+      method: 'GET',
+      headers: { Accept: 'application/json, text/csv, */*' },
+    });
+
+    if (!fetchRes.ok) {
+      throw new Error(`Google Sheet endpoint returned status ${fetchRes.status}`);
+    }
+
+    const contentType = fetchRes.headers.get('content-type') || '';
+    let extractedPunches: any[] = [];
+
+    if (contentType.includes('application/json') || cleanUrl.includes('script.google.com')) {
+      const text = await fetchRes.text();
+      let jsonData: any = [];
+      try {
+        jsonData = JSON.parse(text);
+      } catch {
+        // Fallback to CSV parsing if response is CSV string
+        extractedPunches = BiometricService.parseCsvPunches(text);
+      }
+      if (Array.isArray(jsonData)) {
+        extractedPunches = extractRealtimePunches(jsonData, {});
+      } else if (jsonData && typeof jsonData === 'object') {
+        extractedPunches = extractRealtimePunches(jsonData.data || jsonData.punches || jsonData.rows || jsonData, {});
+      }
+    } else {
+      const csvText = await fetchRes.text();
+      extractedPunches = BiometricService.parseCsvPunches(csvText);
+    }
+
+    if (!extractedPunches.length) {
+      return res.json({
+        success: true,
+        summary: { processed: 0, quarantined: 0, duplicatesIgnored: 0 },
+        message: 'Connected to Google Sheet successfully! No new biometric punches found.',
+      });
+    }
+
+    const result = BiometricService.processPunches(extractedPunches, 'GOOGLE_SHEETS_SYNC');
+    const store = db.get();
+    store.biometricSettings.lastSyncAt = new Date().toISOString().replace('T', ' ').substring(0, 19);
+    store.biometricSettings.recordsSyncedLastRun = result.processed;
+    store.biometricSettings.lastSyncStatus = 'SUCCESS';
+    db.save();
+
+    db.logAudit(
+      'GOOGLE-SHEETS',
+      'Google Apps Script Sync',
+      'SYSTEM' as any,
+      'INGEST_GOOGLE_SHEET_PUNCHES',
+      'BIOMETRIC_ATTENDANCE',
+      result.batchId,
+      'Google Sheet Integration',
+      `Pulled and ingested ${result.processed} punches from Google Sheet Web App.`
+    );
+
+    res.json({
+      success: true,
+      summary: result,
+      punchesCount: extractedPunches.length,
+      message: `Successfully synced ${result.processed} biometric punch(es) from Google Sheet. ${result.quarantined} quarantined, ${result.duplicatesIgnored} duplicates ignored.`,
+    });
+  } catch (err: any) {
+    console.error('Google Sheet Sync Error:', err);
+    res.status(500).json({ error: `Google Sheet Sync Failed: ${err.message}` });
   }
 });
 

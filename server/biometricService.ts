@@ -15,7 +15,7 @@ export class BiometricService {
   /**
    * Process an array of incoming biometric punch records idempotently
    */
-  public static processPunches(punches: PunchInput[], _source: 'API_SYNC' | 'CSV_IMPORT' | 'SIMULATOR' = 'API_SYNC'): {
+  public static processPunches(punches: PunchInput[], _source: 'API_SYNC' | 'CSV_IMPORT' | 'SIMULATOR' | 'GOOGLE_SHEETS_SYNC' = 'API_SYNC'): {
     totalReceived: number;
     processed: number;
     quarantined: number;

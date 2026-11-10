@@ -218,6 +218,12 @@ export const api = {
       body: JSON.stringify({ csvText }),
     }),
 
+  syncGoogleSheet: (payload: { webAppUrl?: string; sheetUrl?: string }) =>
+    request<{ success: boolean; message: string; summary: any; punchesCount: number }>('/biometric/sync-google-sheet', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+
   // Attendance
   getDailyAttendance: (params?: { date?: string; employeeId?: string; departmentId?: string; status?: string }) => {
     const q = new URLSearchParams(params as any).toString();

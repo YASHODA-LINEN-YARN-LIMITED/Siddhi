@@ -145,6 +145,7 @@ export interface BiometricIntegrationSettings {
   name: string;
   enabled: boolean;
   apiBaseUrl: string;
+  googleWebAppUrl?: string;
   endpoint: string;
   httpMethod: 'GET' | 'POST';
   authType: 'NONE' | 'BASIC' | 'BEARER' | 'API_KEY' | 'OAUTH2';
