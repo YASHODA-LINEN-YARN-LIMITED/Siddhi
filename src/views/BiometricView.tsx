@@ -23,6 +23,7 @@ import {
   FileCode,
   Zap,
   Send,
+  Link2,
 } from 'lucide-react';
 import { api } from '../api.ts';
 import { notify } from '../utils/notify.ts';
@@ -44,9 +45,13 @@ export const BiometricView: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'google_sheets' | 'punches' | 'settings' | 'quarantine' | 'csv'>('google_sheets');
   const [copiedGsScript, setCopiedGsScript] = useState(false);
   const [copiedUrl, setCopiedUrl] = useState(false);
+  const [copiedApiUrl, setCopiedApiUrl] = useState(false);
+
+  // Live Server Webhook API URL for Biometric Device
+  const webhookApiUrl = 'https://ais-dev-xprdmpkiap2xlvjmybcnti-854403608887.asia-east1.run.app/api/biometric/webhook';
 
   // User's Configured Google Apps Script Web App URL
-  const userWebUrl = 'https://script.google.com/macros/s/AKfycbxURauNGLsLO8nOQszR_TQHaxvlZsLYhkCd5hnj0GHEzsUpzof2KDZDVXVeyrPgznJmZw/exec';
+  const userWebUrl = 'https://script.google.com/macros/s/AKfycbzTjkabJcvZ1oSYdZMT2nyhdMq0B_cg65BRuaNW1GxuDXJXiQbxVdpwqKzzvrSMKtBEoA/exec';
   const [googleWebAppUrl, setGoogleWebAppUrl] = useState<string>(userWebUrl);
 
   // Quarantine resolution modal state
@@ -59,7 +64,7 @@ export const BiometricView: React.FC = () => {
 
   const appsScriptCode = `/**
  * SIDDHI HRMS & REALTIME BIOMETRIC GOOGLE APPS SCRIPT (Code.gs)
- * Web App URL: ${googleWebAppUrl}
+ * Webhook API URL: ${webhookApiUrl}
  */
 
 function setupAutoSheets() {
@@ -102,6 +107,47 @@ function setupAutoSheets() {
     logSheet = ss.insertSheet('Sync_Logs');
     logSheet.appendRow(['Timestamp', 'Punches_Received', 'Status', 'Response_Details']);
     logSheet.getRange(1, 1, 1, 4).setFontWeight('bold').setBackground('#F3E5F5');
+  }
+}
+
+// Pull biometric punches from HRMS Webhook API directly into Google Sheet
+function pullBiometricDeviceDataToSheet() {
+  setupAutoSheets();
+  const webhookUrl = '${webhookApiUrl}';
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const punchSheet = ss.getSheetByName('Raw_Punches');
+  
+  const response = UrlFetchApp.fetch(webhookUrl, {
+    method: 'get',
+    headers: { 'Accept': 'application/json' },
+    muteHttpExceptions: true
+  });
+  
+  if (response.getResponseCode() === 200) {
+    const text = response.getContentText();
+    let punches = [];
+    try {
+      punches = JSON.parse(text);
+    } catch(e) {}
+    
+    if (Array.isArray(punches) && punches.length > 0) {
+      const nowStr = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd HH:mm:ss");
+      for (let i = 0; i < punches.length; i++) {
+        const p = punches[i];
+        punchSheet.appendRow([
+          'P-' + Date.now() + '-' + i,
+          p.employee_code || p.emp_code || '',
+          p.employee_name || '',
+          p.log_datetime || '',
+          p.log_date || '',
+          p.log_time || '',
+          p.device_sn || 'REALTIME-DEVICE',
+          p.downloaded_at || nowStr,
+          p.status || 'PROCESSED',
+          nowStr
+        ]);
+      }
+    }
   }
 }
 
@@ -193,6 +239,15 @@ function doGet(e) {
       setCopiedUrl(true);
       notify('Google Apps Script Web App URL copied!', 'success');
       setTimeout(() => setCopiedUrl(false), 3000);
+    }
+  };
+
+  const handleCopyApiUrl = () => {
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(webhookApiUrl);
+      setCopiedApiUrl(true);
+      notify('Biometric Device Webhook API URL copied!', 'success');
+      setTimeout(() => setCopiedApiUrl(false), 3000);
     }
   };
 
@@ -355,7 +410,7 @@ function doGet(e) {
             Biometric Attendance Integration
           </h1>
           <p className="text-xs text-slate-500 mt-0.5">
-            Google Sheets & Apps Script Web App Automated Biometric Connector
+            Biometric Device Webhook API & Google Sheets Automated Sync Connector
           </p>
         </div>
 
@@ -366,7 +421,7 @@ function doGet(e) {
             className="px-3.5 py-2 text-xs font-semibold text-emerald-950 bg-emerald-100 hover:bg-emerald-200 border border-emerald-300 rounded-lg transition-colors flex items-center gap-1.5 shadow-2xs"
           >
             <Send className={`h-4 w-4 text-emerald-700 ${pushingToSheet ? 'animate-spin' : ''}`} />
-            <span>{pushingToSheet ? 'Populating...' : 'Populate & Create Google Sheet Tabs'}</span>
+            <span>{pushingToSheet ? 'Populating...' : 'Populate Google Sheet Tabs'}</span>
           </button>
 
           <button
@@ -380,23 +435,32 @@ function doGet(e) {
         </div>
       </div>
 
-      {/* Live Google Sheets Connected Banner */}
-      <div className="rounded-xl border border-emerald-300 bg-emerald-50/90 p-3.5 text-xs text-emerald-950 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs">
-        <div className="flex items-center gap-2.5">
-          <div className="h-2.5 w-2.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
-          <span className="font-bold text-emerald-900">Google Sheets Web App Connector: Connected</span>
-          <span className="text-slate-400 hidden sm:inline">·</span>
-          <span className="text-2xs text-emerald-800 font-mono hidden sm:inline truncate max-w-md">
-            URL: {googleWebAppUrl}
-          </span>
+      {/* Webhook API Banner */}
+      <div className="rounded-xl border border-slate-300 bg-white p-4 shadow-2xs text-xs space-y-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-2">
+          <div className="font-bold text-slate-900 flex items-center gap-2 text-sm">
+            <Link2 className="h-4 w-4 text-emerald-600" />
+            <span>Biometric Device Webhook API Endpoint:</span>
+          </div>
+          <button
+            onClick={handleCopyApiUrl}
+            className="px-3 py-1.5 text-xs font-semibold text-white bg-slate-900 hover:bg-slate-800 rounded-lg transition-colors flex items-center gap-1.5 shrink-0 self-start sm:self-auto shadow-2xs"
+          >
+            {copiedApiUrl ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
+            <span>{copiedApiUrl ? 'Copied Webhook API' : 'Copy Webhook API URL'}</span>
+          </button>
         </div>
-        <button
-          onClick={loadData}
-          className="px-3 py-1.5 text-xs font-semibold text-emerald-900 bg-white hover:bg-emerald-100/80 border border-emerald-300 rounded-lg transition-colors flex items-center gap-1.5 self-start sm:self-auto shadow-2xs"
-        >
-          <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
-          <span>Refresh Punches ({rawPunches.length})</span>
-        </button>
+        <div className="flex items-center gap-2">
+          <input
+            type="text"
+            readOnly
+            value={webhookApiUrl}
+            className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-xs font-mono font-bold text-slate-900 select-all"
+          />
+        </div>
+        <p className="text-2xs text-slate-500">
+          Paste this URL into your <strong>Biometric Device / Realtime Cloud Third-Party API URL</strong> setting. Device punches push directly to this API, and Code.gs pulls them into your Google Sheet!
+        </p>
       </div>
 
       {/* Test / Sync Result Banner */}
@@ -491,7 +555,7 @@ function doGet(e) {
                   <span>Google Apps Script Web App Endpoint</span>
                 </h2>
                 <p className="text-2xs text-slate-500 mt-0.5">
-                  Biometric devices push to your Google Sheet script, and Siddhi HRMS pulls live punches directly from this Web App URL.
+                  Biometric devices push to your Webhook API URL, and Code.gs pulls live punches directly into your Google Sheet.
                 </p>
               </div>
               <span className="text-2xs font-bold text-emerald-800 bg-emerald-100 px-3 py-1 rounded-full uppercase shrink-0">
@@ -530,14 +594,15 @@ function doGet(e) {
               </div>
             </div>
 
-            {/* Quick Action Callout if sheet is blank */}
+            {/* Quick Action Callout */}
             <div className="bg-emerald-50/70 border border-emerald-200 p-4 rounded-xl text-xs space-y-2">
               <div className="font-bold text-emerald-900 flex items-center gap-2">
                 <Zap className="h-4 w-4 text-emerald-600 shrink-0" />
-                <span>If your Google Sheet is currently blank:</span>
+                <span>Automated Data Pipeline:</span>
               </div>
               <p className="text-2xs text-emerald-800 leading-relaxed">
-                Click the <strong>"Populate Google Sheet Tabs Now"</strong> button above! Siddhi HRMS will immediately send punch data to your Google Apps Script Web App URL. The script will automatically build all four tabs (<code className="bg-white px-1 py-0.5 rounded font-mono font-bold text-slate-900">Raw_Punches</code>, <code className="bg-white px-1 py-0.5 rounded font-mono font-bold text-slate-900">Employees</code>, <code className="bg-white px-1 py-0.5 rounded font-mono font-bold text-slate-900">Daily_Attendance</code>, <code className="bg-white px-1 py-0.5 rounded font-mono font-bold text-slate-900">Sync_Logs</code>) with bold green headers and write data rows!
+                1. Biometric Device pushes to Webhook API URL: <code className="bg-white px-1 py-0.5 rounded font-mono font-bold text-slate-900">{webhookApiUrl}</code>.<br />
+                2. Code.gs function <code className="bg-white px-1 py-0.5 rounded font-mono font-bold text-slate-900">pullBiometricDeviceDataToSheet()</code> pulls all punches into your Google Sheet tabs automatically!
               </p>
             </div>
           </div>
@@ -551,7 +616,7 @@ function doGet(e) {
                   <span>Google Apps Script Code (`Code.gs`)</span>
                 </div>
                 <p className="text-2xs text-slate-400 mt-0.5">
-                  Your Google Apps Script automatically builds sheets (`Raw_Punches`, `Employees`, `Daily_Attendance`, `Sync_Logs`) and formats headers.
+                  Your Google Apps Script automatically pulls from Webhook API URL and populates all 4 Google Sheet tabs.
                 </p>
               </div>
               <button

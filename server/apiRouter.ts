@@ -950,6 +950,18 @@ const handleRealtimeWebhook = (req: any, res: any) => {
   try {
     const punches = extractRealtimePunches(req.body, req.query);
     if (!punches.length) {
+      const store = db.get();
+      if (req.method === 'GET') {
+        return res.status(200).json(store.rawBiometricPunches.map((p) => ({
+          employee_code: p.employeeCode,
+          log_datetime: p.logDatetime,
+          log_date: p.logDatetime.split(' ')[0],
+          log_time: p.logTime,
+          device_sn: p.deviceSn,
+          downloaded_at: p.downloadedAt || p.createdAt,
+          status: p.status,
+        })));
+      }
       return res.status(200).json({
         status: 'SUCCESS',
         code: 200,
