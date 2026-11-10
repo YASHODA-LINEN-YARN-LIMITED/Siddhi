@@ -156,8 +156,6 @@ export const Header: React.FC<HeaderProps> = ({
     activeTab === 'admin' ? 'admin' : 'file'
   );
 
-  const activeSubmenuList = getSubmenuItemsForCategory(activeCategory);
-
   const categories = [
     { key: 'device_setup', label: 'Device Setup', icon: Monitor, defaultTab: 'biometric' as NavTab },
     { key: 'file', label: 'File', icon: FileText, defaultTab: 'organization' as NavTab },
@@ -329,28 +327,6 @@ export const Header: React.FC<HeaderProps> = ({
           );
         })}
       </nav>
-
-      {/* Secondary Quick Submenu Toolbar Bar - ALWAYS Visible for Active Category */}
-      {activeSubmenuList.length > 0 && (
-        <div className="bg-slate-50 border-t border-slate-200 px-4 py-1.5 flex items-center gap-1 overflow-x-auto text-[11px]">
-          <span className="text-slate-400 font-bold uppercase tracking-wider text-[9px] mr-2 shrink-0">
-            {activeCategory.replace('_', ' ')} Submenu:
-          </span>
-          {activeSubmenuList.map((sub) => {
-            const Icon = sub.icon;
-            return (
-              <button
-                key={sub.label}
-                onClick={() => handleSubItemClick(sub.tab)}
-                className="px-2.5 py-1 rounded bg-white hover:bg-orange-50 text-slate-700 hover:text-orange-600 border border-slate-200 hover:border-orange-300 font-semibold transition-colors flex items-center gap-1.5 shrink-0 shadow-xs"
-              >
-                <Icon className="h-3 w-3 text-orange-500" />
-                <span>{sub.label}</span>
-              </button>
-            );
-          })}
-        </div>
-      )}
     </header>
   );
 };
