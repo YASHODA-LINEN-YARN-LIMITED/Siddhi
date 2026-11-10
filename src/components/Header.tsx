@@ -65,23 +65,121 @@ export const Header: React.FC<HeaderProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [showRoleSwitcher, setShowRoleSwitcher] = useState(false);
 
-  const handleMenuToggle = (menuName: string) => {
-    setOpenMenu(openMenu === menuName ? null : menuName);
-  };
-
   const handleSubItemClick = (tab: NavTab) => {
     onSelectTab(tab);
     setOpenMenu(null);
   };
 
+  const getSubmenuItemsForCategory = (category: string) => {
+    switch (category) {
+      case 'device_setup':
+        return [
+          { label: 'Add Edit Machine', icon: SlidersHorizontal, tab: 'biometric' as NavTab },
+          { label: 'Hardware Setup', icon: Monitor, tab: 'biometric' as NavTab },
+        ];
+      case 'file':
+        return [
+          { label: 'Company', icon: Building2, tab: 'organization' as NavTab },
+          { label: 'Branch', icon: GitBranch, tab: 'organization' as NavTab },
+          { label: 'Department', icon: Users, tab: 'organization' as NavTab },
+          { label: 'Designation', icon: Briefcase, tab: 'organization' as NavTab },
+          { label: 'Office Time Policy', icon: Clock, tab: 'attendance' as NavTab },
+          { label: 'Shift Details', icon: Calendar, tab: 'attendance' as NavTab },
+          { label: 'Employee List', icon: Users, tab: 'employees' as NavTab },
+          { label: 'Define Leave', icon: Umbrella, tab: 'leave' as NavTab },
+          { label: 'Define Holiday', icon: Calendar, tab: 'organization' as NavTab },
+          { label: 'Employee Rejoining', icon: UserPlus, tab: 'onboarding' as NavTab },
+        ];
+      case 'transaction':
+        return [
+          { label: 'Leave Opening Entry', icon: FileSpreadsheet, tab: 'leave' as NavTab },
+          { label: 'Leave Application', icon: Send, tab: 'leave' as NavTab },
+          { label: 'Leave Approval', icon: UserCheck, tab: 'leave' as NavTab },
+          { label: 'Shift Change', icon: RefreshCw, tab: 'attendance' as NavTab },
+          { label: 'Generate Shift', icon: Calendar, tab: 'attendance' as NavTab },
+          { label: 'Shift Roaster', icon: Layers, tab: 'attendance' as NavTab },
+          { label: 'Manual Punch', icon: Clock, tab: 'attendance' as NavTab },
+          { label: 'Bulk Manual Punch', icon: FileSpreadsheet, tab: 'attendance' as NavTab },
+          { label: 'Approval GPS Punch', icon: MapPin, tab: 'attendance' as NavTab },
+          { label: 'Approval Manual Punch', icon: UserCheck, tab: 'attendance' as NavTab },
+          { label: 'Attendance Process', icon: Sliders, tab: 'attendance' as NavTab },
+        ];
+      case 'data_download':
+        return [
+          { label: 'Download Logs from Device', icon: Download, tab: 'biometric' as NavTab },
+          { label: 'Upload AGL File', icon: FileText, tab: 'biometric' as NavTab },
+          { label: 'Third-party API Integration', icon: Globe, tab: 'biometric' as NavTab },
+        ];
+      case 'reports':
+        return [
+          { label: 'Master Report', icon: FileText, tab: 'reports' as NavTab },
+          { label: 'Daily Report', icon: Calendar, tab: 'reports' as NavTab },
+          { label: 'Monthly Report', icon: BarChart3, tab: 'reports' as NavTab },
+          { label: 'Old Version Monthly', icon: Clock, tab: 'reports' as NavTab },
+          { label: 'Yearly Report', icon: Calendar, tab: 'reports' as NavTab },
+          { label: 'GPS Report', icon: MapPin, tab: 'reports' as NavTab },
+          { label: 'Desk Attendance Report', icon: Monitor, tab: 'reports' as NavTab },
+          { label: 'Staff Log Report With Photo', icon: Users, tab: 'reports' as NavTab },
+        ];
+      case 'payroll':
+        return [
+          { label: 'Loan/Advance', icon: CreditCard, tab: 'expenses' as NavTab },
+          { label: 'Bonus Payroll', icon: CreditCard, tab: 'payroll' as NavTab },
+          { label: 'Conveyance Approval', icon: FileText, tab: 'expenses' as NavTab },
+          { label: 'Monthly Pay Process', icon: Sliders, tab: 'payroll' as NavTab },
+          { label: 'Salary Report', icon: BarChart3, tab: 'payroll' as NavTab },
+        ];
+      case 'access_control':
+        return [
+          { label: 'Daily Access Report', icon: Lock, tab: 'reports' as NavTab },
+        ];
+      case 'admin':
+        return [
+          { label: 'User Manager', icon: Users, tab: 'admin' as NavTab },
+          { label: 'Change Password', icon: Lock, tab: 'admin' as NavTab },
+          { label: 'Add Notification', icon: MessageSquare, tab: 'admin' as NavTab },
+          { label: 'SMS Setting', icon: MessageSquare, tab: 'admin' as NavTab },
+          { label: 'View Error Logs', icon: ShieldAlert, tab: 'admin' as NavTab },
+          { label: 'Update Database', icon: Database, tab: 'admin' as NavTab },
+        ];
+      default:
+        return [];
+    }
+  };
+
+  const activeCategory = openMenu || (
+    activeTab === 'biometric' ? 'device_setup' :
+    ['organization', 'employees', 'leave', 'onboarding'].includes(activeTab) ? 'file' :
+    activeTab === 'attendance' ? 'transaction' :
+    activeTab === 'reports' ? 'reports' :
+    ['payroll', 'expenses'].includes(activeTab) ? 'payroll' :
+    activeTab === 'admin' ? 'admin' : 'file'
+  );
+
+  const activeSubmenuList = getSubmenuItemsForCategory(activeCategory);
+
+  const categories = [
+    { key: 'device_setup', label: 'Device Setup', icon: Monitor, defaultTab: 'biometric' as NavTab },
+    { key: 'file', label: 'File', icon: FileText, defaultTab: 'organization' as NavTab },
+    { key: 'transaction', label: 'Transaction', icon: Settings, defaultTab: 'attendance' as NavTab },
+    { key: 'data_download', label: 'Data Download', icon: Download, defaultTab: 'biometric' as NavTab },
+    { key: 'reports', label: 'Reports', icon: BarChart3, defaultTab: 'reports' as NavTab },
+    { key: 'payroll', label: 'PayRoll', icon: CreditCard, defaultTab: 'payroll' as NavTab },
+    { key: 'access_control', label: 'Access Control', icon: Lock, defaultTab: 'reports' as NavTab },
+    { key: 'admin', label: 'Admin', icon: UserCheck, defaultTab: 'admin' as NavTab },
+  ];
+
   return (
-    <header className="w-full bg-white border-b border-slate-200 shadow-2xs z-50 select-none">
+    <header className="w-full bg-white border-b border-slate-200 shadow-sm z-50 select-none">
       {/* Top Header Bar */}
       <div className="flex flex-wrap items-center justify-between px-4 py-2 border-b border-slate-100 bg-white gap-3">
         {/* Left: Siddhi Brand Logo */}
         <div className="flex items-center gap-4">
           <div
-            onClick={() => onSelectTab('dashboard')}
+            onClick={() => {
+              onSelectTab('dashboard');
+              setOpenMenu(null);
+            }}
             className="flex items-center gap-1.5 cursor-pointer group"
           >
             <div className="flex flex-col items-start leading-none">
@@ -158,14 +256,14 @@ export const Header: React.FC<HeaderProps> = ({
         </div>
       </div>
 
-      {/* Main Horizontal Navigation Menu Bar (Hover & Click Dropdowns) */}
+      {/* Main Horizontal Navigation Menu Bar */}
       <nav className="relative z-40 flex flex-wrap items-center gap-1 bg-slate-100 border-t border-slate-200 px-3 py-0.5 text-xs font-semibold text-slate-700">
         {/* 1. Dashboard */}
         <button
           onClick={() => handleSubItemClick('dashboard')}
-          className={`flex items-center gap-1.5 px-3.5 py-2.5 border-b-2 transition-colors shrink-0 ${
+          className={`flex items-center gap-1.5 px-3.5 py-2 border-b-2 transition-colors shrink-0 ${
             activeTab === 'dashboard'
-              ? 'bg-orange-500 text-white border-orange-600 shadow-2xs font-bold'
+              ? 'bg-orange-500 text-white border-orange-600 shadow-sm font-bold'
               : 'border-transparent hover:bg-slate-200 hover:text-slate-900 text-slate-700'
           }`}
         >
@@ -173,512 +271,86 @@ export const Header: React.FC<HeaderProps> = ({
           <span>Dashboard</span>
         </button>
 
-        {/* 2. Device Setup */}
-        <div className="relative group">
-          <button
-            onClick={() => handleMenuToggle('device_setup')}
-            className={`flex items-center gap-1.5 px-3.5 py-2.5 border-b-2 transition-colors shrink-0 ${
-              activeTab === 'biometric'
-                ? 'bg-slate-200 text-orange-600 border-orange-500 font-bold'
-                : 'border-transparent hover:bg-slate-200 hover:text-slate-900 text-slate-700'
-            }`}
-          >
-            <Monitor className="h-4 w-4 text-slate-600" />
-            <span>Device Setup</span>
-            <ChevronDown className="h-3 w-3 text-slate-400 group-hover:rotate-180 transition-transform" />
-          </button>
-          
-          <div
-            className={`absolute left-0 top-full mt-0 w-56 bg-white border border-slate-200 rounded-b-xl shadow-2xl py-1.5 z-50 font-normal ${
-              openMenu === 'device_setup' ? 'block' : 'hidden group-hover:block'
-            }`}
-          >
-            <button
-              onClick={() => handleSubItemClick('biometric')}
-              className="w-full text-left px-4 py-2 hover:bg-orange-50 hover:text-orange-600 flex items-center gap-2.5 text-slate-700 font-medium transition-colors"
-            >
-              <SlidersHorizontal className="h-3.5 w-3.5 text-orange-500" />
-              <span>Add Edit Machine</span>
-            </button>
-            <button
-              onClick={() => handleSubItemClick('biometric')}
-              className="w-full text-left px-4 py-2 hover:bg-orange-50 hover:text-orange-600 flex items-center gap-2.5 text-slate-700 font-medium transition-colors"
-            >
-              <Monitor className="h-3.5 w-3.5 text-orange-500" />
-              <span>Hardware Setup</span>
-            </button>
-          </div>
-        </div>
+        {/* 2 to 9 Menu Categories */}
+        {categories.map((cat) => {
+          const Icon = cat.icon;
+          const items = getSubmenuItemsForCategory(cat.key);
+          const isOpen = openMenu === cat.key;
+          const isActive = activeCategory === cat.key;
 
-        {/* 3. File */}
-        <div className="relative group">
-          <button
-            onClick={() => handleMenuToggle('file')}
-            className={`flex items-center gap-1.5 px-3.5 py-2.5 border-b-2 transition-colors shrink-0 ${
-              ['organization', 'employees', 'leave', 'onboarding'].includes(activeTab)
-                ? 'bg-slate-200 text-orange-600 border-orange-500 font-bold'
-                : 'border-transparent hover:bg-slate-200 hover:text-slate-900 text-slate-700'
-            }`}
-          >
-            <FileText className="h-4 w-4 text-slate-600" />
-            <span>File</span>
-            <ChevronDown className="h-3 w-3 text-slate-400 group-hover:rotate-180 transition-transform" />
-          </button>
+          return (
+            <div
+              key={cat.key}
+              className="relative group"
+              onMouseEnter={() => setOpenMenu(cat.key)}
+              onMouseLeave={() => setOpenMenu(null)}
+            >
+              <button
+                onClick={() => {
+                  setOpenMenu(isOpen ? null : cat.key);
+                  onSelectTab(cat.defaultTab);
+                }}
+                className={`flex items-center gap-1.5 px-3.5 py-2 border-b-2 transition-colors shrink-0 ${
+                  isActive || isOpen
+                    ? 'bg-slate-200 text-orange-600 border-orange-500 font-bold'
+                    : 'border-transparent hover:bg-slate-200 hover:text-slate-900 text-slate-700'
+                }`}
+              >
+                <Icon className="h-4 w-4 text-slate-600" />
+                <span>{cat.label}</span>
+                <ChevronDown
+                  className={`h-3 w-3 text-slate-400 group-hover:rotate-180 transition-transform ${
+                    isOpen ? 'rotate-180' : ''
+                  }`}
+                />
+              </button>
 
-          <div
-            className={`absolute left-0 top-full mt-0 w-56 bg-white border border-slate-200 rounded-b-xl shadow-2xl py-1.5 z-50 font-normal ${
-              openMenu === 'file' ? 'block' : 'hidden group-hover:block'
-            }`}
-          >
-            <button
-              onClick={() => handleSubItemClick('organization')}
-              className="w-full text-left px-4 py-1.5 hover:bg-orange-50 hover:text-orange-600 flex items-center gap-2.5 text-slate-700 font-medium transition-colors"
-            >
-              <Building2 className="h-3.5 w-3.5 text-orange-500" />
-              <span>Company</span>
-            </button>
-            <button
-              onClick={() => handleSubItemClick('organization')}
-              className="w-full text-left px-4 py-1.5 hover:bg-orange-50 hover:text-orange-600 flex items-center gap-2.5 text-slate-700 font-medium transition-colors"
-            >
-              <GitBranch className="h-3.5 w-3.5 text-orange-500" />
-              <span>Branch</span>
-            </button>
-            <button
-              onClick={() => handleSubItemClick('organization')}
-              className="w-full text-left px-4 py-1.5 hover:bg-orange-50 hover:text-orange-600 flex items-center gap-2.5 text-slate-700 font-medium transition-colors"
-            >
-              <Users className="h-3.5 w-3.5 text-orange-500" />
-              <span>Department</span>
-            </button>
-            <button
-              onClick={() => handleSubItemClick('organization')}
-              className="w-full text-left px-4 py-1.5 hover:bg-orange-50 hover:text-orange-600 flex items-center gap-2.5 text-slate-700 font-medium transition-colors"
-            >
-              <Briefcase className="h-3.5 w-3.5 text-orange-500" />
-              <span>Designation</span>
-            </button>
-            <button
-              onClick={() => handleSubItemClick('attendance')}
-              className="w-full text-left px-4 py-1.5 hover:bg-orange-50 hover:text-orange-600 flex items-center gap-2.5 text-slate-700 font-medium transition-colors"
-            >
-              <Clock className="h-3.5 w-3.5 text-orange-500" />
-              <span>Office Time Policy</span>
-            </button>
-            <button
-              onClick={() => handleSubItemClick('attendance')}
-              className="w-full text-left px-4 py-1.5 hover:bg-orange-50 hover:text-orange-600 flex items-center gap-2.5 text-slate-700 font-medium transition-colors"
-            >
-              <Calendar className="h-3.5 w-3.5 text-orange-500" />
-              <span>Shift Details</span>
-            </button>
-            <button
-              onClick={() => handleSubItemClick('employees')}
-              className="w-full text-left px-4 py-1.5 hover:bg-orange-50 hover:text-orange-600 flex items-center gap-2.5 text-slate-700 font-medium transition-colors"
-            >
-              <Users className="h-3.5 w-3.5 text-orange-500" />
-              <span>Employee List</span>
-            </button>
-            <button
-              onClick={() => handleSubItemClick('leave')}
-              className="w-full text-left px-4 py-1.5 hover:bg-orange-50 hover:text-orange-600 flex items-center gap-2.5 text-slate-700 font-medium transition-colors"
-            >
-              <Umbrella className="h-3.5 w-3.5 text-orange-500" />
-              <span>Define Leave</span>
-            </button>
-            <button
-              onClick={() => handleSubItemClick('organization')}
-              className="w-full text-left px-4 py-1.5 hover:bg-orange-50 hover:text-orange-600 flex items-center gap-2.5 text-slate-700 font-medium transition-colors"
-            >
-              <Calendar className="h-3.5 w-3.5 text-orange-500" />
-              <span>Define Holiday</span>
-            </button>
-            <button
-              onClick={() => handleSubItemClick('onboarding')}
-              className="w-full text-left px-4 py-1.5 hover:bg-orange-50 hover:text-orange-600 flex items-center gap-2.5 text-slate-700 font-medium transition-colors"
-            >
-              <UserPlus className="h-3.5 w-3.5 text-orange-500" />
-              <span>Employee Rejoining</span>
-            </button>
-          </div>
-        </div>
-
-        {/* 4. Transaction */}
-        <div className="relative group">
-          <button
-            onClick={() => handleMenuToggle('transaction')}
-            className={`flex items-center gap-1.5 px-3.5 py-2.5 border-b-2 transition-colors shrink-0 ${
-              activeTab === 'attendance'
-                ? 'bg-slate-200 text-orange-600 border-orange-500 font-bold'
-                : 'border-transparent hover:bg-slate-200 hover:text-slate-900 text-slate-700'
-            }`}
-          >
-            <Settings className="h-4 w-4 text-slate-600" />
-            <span>Transaction</span>
-            <ChevronDown className="h-3 w-3 text-slate-400 group-hover:rotate-180 transition-transform" />
-          </button>
-
-          <div
-            className={`absolute left-0 top-full mt-0 w-60 bg-white border border-slate-200 rounded-b-xl shadow-2xl py-1.5 z-50 font-normal ${
-              openMenu === 'transaction' ? 'block' : 'hidden group-hover:block'
-            }`}
-          >
-            <button
-              onClick={() => handleSubItemClick('leave')}
-              className="w-full text-left px-4 py-1.5 hover:bg-orange-50 hover:text-orange-600 flex items-center gap-2.5 text-slate-700 font-medium transition-colors"
-            >
-              <FileSpreadsheet className="h-3.5 w-3.5 text-orange-500" />
-              <span>Leave Opening Entry</span>
-            </button>
-            <button
-              onClick={() => handleSubItemClick('leave')}
-              className="w-full text-left px-4 py-1.5 hover:bg-orange-50 hover:text-orange-600 flex items-center gap-2.5 text-slate-700 font-medium transition-colors"
-            >
-              <Send className="h-3.5 w-3.5 text-orange-500" />
-              <span>Leave Application</span>
-            </button>
-            <button
-              onClick={() => handleSubItemClick('leave')}
-              className="w-full text-left px-4 py-1.5 hover:bg-orange-50 hover:text-orange-600 flex items-center gap-2.5 text-slate-700 font-medium transition-colors"
-            >
-              <UserCheck className="h-3.5 w-3.5 text-orange-500" />
-              <span>Leave Approval</span>
-            </button>
-            <button
-              onClick={() => handleSubItemClick('attendance')}
-              className="w-full text-left px-4 py-1.5 hover:bg-orange-50 hover:text-orange-600 flex items-center gap-2.5 text-slate-700 font-medium transition-colors"
-            >
-              <RefreshCw className="h-3.5 w-3.5 text-orange-500" />
-              <span>Shift Change</span>
-            </button>
-            <button
-              onClick={() => handleSubItemClick('attendance')}
-              className="w-full text-left px-4 py-1.5 hover:bg-orange-50 hover:text-orange-600 flex items-center gap-2.5 text-slate-700 font-medium transition-colors"
-            >
-              <Calendar className="h-3.5 w-3.5 text-orange-500" />
-              <span>Generate Shift</span>
-            </button>
-            <button
-              onClick={() => handleSubItemClick('attendance')}
-              className="w-full text-left px-4 py-1.5 hover:bg-orange-50 hover:text-orange-600 flex items-center gap-2.5 text-slate-700 font-medium transition-colors"
-            >
-              <Layers className="h-3.5 w-3.5 text-orange-500" />
-              <span>Shift Roaster</span>
-            </button>
-            <button
-              onClick={() => handleSubItemClick('attendance')}
-              className="w-full text-left px-4 py-1.5 hover:bg-orange-50 hover:text-orange-600 flex items-center gap-2.5 text-slate-700 font-medium transition-colors"
-            >
-              <Clock className="h-3.5 w-3.5 text-orange-500" />
-              <span>Manual Punch</span>
-            </button>
-            <button
-              onClick={() => handleSubItemClick('attendance')}
-              className="w-full text-left px-4 py-1.5 hover:bg-orange-50 hover:text-orange-600 flex items-center gap-2.5 text-slate-700 font-medium transition-colors"
-            >
-              <FileSpreadsheet className="h-3.5 w-3.5 text-orange-500" />
-              <span>Bulk Manual Punch</span>
-            </button>
-            <button
-              onClick={() => handleSubItemClick('attendance')}
-              className="w-full text-left px-4 py-1.5 hover:bg-orange-50 hover:text-orange-600 flex items-center gap-2.5 text-slate-700 font-medium transition-colors"
-            >
-              <MapPin className="h-3.5 w-3.5 text-orange-500" />
-              <span>Approval GPS Punch</span>
-            </button>
-            <button
-              onClick={() => handleSubItemClick('attendance')}
-              className="w-full text-left px-4 py-1.5 hover:bg-orange-50 hover:text-orange-600 flex items-center gap-2.5 text-slate-700 font-medium transition-colors"
-            >
-              <UserCheck className="h-3.5 w-3.5 text-orange-500" />
-              <span>Approval Manual Punch</span>
-            </button>
-            <button
-              onClick={() => handleSubItemClick('attendance')}
-              className="w-full text-left px-4 py-1.5 hover:bg-orange-50 hover:text-orange-600 flex items-center gap-2.5 text-slate-700 font-medium transition-colors"
-            >
-              <Sliders className="h-3.5 w-3.5 text-orange-500" />
-              <span>Attendance Process</span>
-            </button>
-          </div>
-        </div>
-
-        {/* 5. Data Download */}
-        <div className="relative group">
-          <button
-            onClick={() => handleMenuToggle('data_download')}
-            className={`flex items-center gap-1.5 px-3.5 py-2.5 border-b-2 transition-colors shrink-0 ${
-              activeTab === 'biometric'
-                ? 'bg-slate-200 text-orange-600 border-orange-500 font-bold'
-                : 'border-transparent hover:bg-slate-200 hover:text-slate-900 text-slate-700'
-            }`}
-          >
-            <Download className="h-4 w-4 text-slate-600" />
-            <span>Data Download</span>
-            <ChevronDown className="h-3 w-3 text-slate-400 group-hover:rotate-180 transition-transform" />
-          </button>
-
-          <div
-            className={`absolute left-0 top-full mt-0 w-60 bg-white border border-slate-200 rounded-b-xl shadow-2xl py-1.5 z-50 font-normal ${
-              openMenu === 'data_download' ? 'block' : 'hidden group-hover:block'
-            }`}
-          >
-            <button
-              onClick={() => handleSubItemClick('biometric')}
-              className="w-full text-left px-4 py-2 hover:bg-orange-50 hover:text-orange-600 flex items-center gap-2.5 text-slate-700 font-medium transition-colors"
-            >
-              <Download className="h-3.5 w-3.5 text-orange-500" />
-              <span>Download Logs from Device</span>
-            </button>
-            <button
-              onClick={() => handleSubItemClick('biometric')}
-              className="w-full text-left px-4 py-2 hover:bg-orange-50 hover:text-orange-600 flex items-center gap-2.5 text-slate-700 font-medium transition-colors"
-            >
-              <FileText className="h-3.5 w-3.5 text-orange-500" />
-              <span>Upload AGL File</span>
-            </button>
-            <button
-              onClick={() => handleSubItemClick('biometric')}
-              className="w-full text-left px-4 py-2 hover:bg-orange-50 hover:text-orange-600 flex items-center gap-2.5 text-slate-700 font-medium transition-colors"
-            >
-              <Globe className="h-3.5 w-3.5 text-orange-500" />
-              <span>Third-party API Integration</span>
-            </button>
-          </div>
-        </div>
-
-        {/* 6. Reports */}
-        <div className="relative group">
-          <button
-            onClick={() => handleMenuToggle('reports')}
-            className={`flex items-center gap-1.5 px-3.5 py-2.5 border-b-2 transition-colors shrink-0 ${
-              activeTab === 'reports'
-                ? 'bg-slate-200 text-orange-600 border-orange-500 font-bold'
-                : 'border-transparent hover:bg-slate-200 hover:text-slate-900 text-slate-700'
-            }`}
-          >
-            <BarChart3 className="h-4 w-4 text-slate-600" />
-            <span>Reports</span>
-            <ChevronDown className="h-3 w-3 text-slate-400 group-hover:rotate-180 transition-transform" />
-          </button>
-
-          <div
-            className={`absolute left-0 top-full mt-0 w-60 bg-white border border-slate-200 rounded-b-xl shadow-2xl py-1.5 z-50 font-normal ${
-              openMenu === 'reports' ? 'block' : 'hidden group-hover:block'
-            }`}
-          >
-            <button
-              onClick={() => handleSubItemClick('reports')}
-              className="w-full text-left px-4 py-1.5 hover:bg-orange-50 hover:text-orange-600 flex items-center gap-2.5 text-slate-700 font-medium transition-colors"
-            >
-              <FileText className="h-3.5 w-3.5 text-orange-500" />
-              <span>Master Report</span>
-            </button>
-            <button
-              onClick={() => handleSubItemClick('reports')}
-              className="w-full text-left px-4 py-1.5 hover:bg-orange-50 hover:text-orange-600 flex items-center gap-2.5 text-slate-700 font-medium transition-colors"
-            >
-              <Calendar className="h-3.5 w-3.5 text-orange-500" />
-              <span>Daily Report</span>
-            </button>
-            <button
-              onClick={() => handleSubItemClick('reports')}
-              className="w-full text-left px-4 py-1.5 hover:bg-orange-50 hover:text-orange-600 flex items-center gap-2.5 text-slate-700 font-medium transition-colors"
-            >
-              <BarChart3 className="h-3.5 w-3.5 text-orange-500" />
-              <span>Monthly Report</span>
-            </button>
-            <button
-              onClick={() => handleSubItemClick('reports')}
-              className="w-full text-left px-4 py-1.5 hover:bg-orange-50 hover:text-orange-600 flex items-center gap-2.5 text-slate-700 font-medium transition-colors"
-            >
-              <Clock className="h-3.5 w-3.5 text-orange-500" />
-              <span>Old Version Monthly</span>
-            </button>
-            <button
-              onClick={() => handleSubItemClick('reports')}
-              className="w-full text-left px-4 py-1.5 hover:bg-orange-50 hover:text-orange-600 flex items-center gap-2.5 text-slate-700 font-medium transition-colors"
-            >
-              <Calendar className="h-3.5 w-3.5 text-orange-500" />
-              <span>Yearly Report</span>
-            </button>
-            <button
-              onClick={() => handleSubItemClick('reports')}
-              className="w-full text-left px-4 py-1.5 hover:bg-orange-50 hover:text-orange-600 flex items-center gap-2.5 text-slate-700 font-medium transition-colors"
-            >
-              <MapPin className="h-3.5 w-3.5 text-orange-500" />
-              <span>GPS Report</span>
-            </button>
-            <button
-              onClick={() => handleSubItemClick('reports')}
-              className="w-full text-left px-4 py-1.5 hover:bg-orange-50 hover:text-orange-600 flex items-center gap-2.5 text-slate-700 font-medium transition-colors"
-            >
-              <Monitor className="h-3.5 w-3.5 text-orange-500" />
-              <span>Desk Attendance Report</span>
-            </button>
-            <button
-              onClick={() => handleSubItemClick('reports')}
-              className="w-full text-left px-4 py-1.5 hover:bg-orange-50 hover:text-orange-600 flex items-center gap-2.5 text-slate-700 font-medium transition-colors"
-            >
-              <Users className="h-3.5 w-3.5 text-orange-500" />
-              <span>Staff Log Report With Photo</span>
-            </button>
-          </div>
-        </div>
-
-        {/* 7. PayRoll */}
-        <div className="relative group">
-          <button
-            onClick={() => handleMenuToggle('payroll')}
-            className={`flex items-center gap-1.5 px-3.5 py-2.5 border-b-2 transition-colors shrink-0 ${
-              ['payroll', 'expenses'].includes(activeTab)
-                ? 'bg-slate-200 text-orange-600 border-orange-500 font-bold'
-                : 'border-transparent hover:bg-slate-200 hover:text-slate-900 text-slate-700'
-            }`}
-          >
-            <CreditCard className="h-4 w-4 text-slate-600" />
-            <span>PayRoll</span>
-            <ChevronDown className="h-3 w-3 text-slate-400 group-hover:rotate-180 transition-transform" />
-          </button>
-
-          <div
-            className={`absolute left-0 top-full mt-0 w-56 bg-white border border-slate-200 rounded-b-xl shadow-2xl py-1.5 z-50 font-normal ${
-              openMenu === 'payroll' ? 'block' : 'hidden group-hover:block'
-            }`}
-          >
-            <button
-              onClick={() => handleSubItemClick('expenses')}
-              className="w-full text-left px-4 py-2 hover:bg-orange-50 hover:text-orange-600 flex items-center gap-2.5 text-slate-700 font-medium transition-colors"
-            >
-              <CreditCard className="h-3.5 w-3.5 text-orange-500" />
-              <span>Loan/Advance</span>
-            </button>
-            <button
-              onClick={() => handleSubItemClick('payroll')}
-              className="w-full text-left px-4 py-2 hover:bg-orange-50 hover:text-orange-600 flex items-center gap-2.5 text-slate-700 font-medium transition-colors"
-            >
-              <CreditCard className="h-3.5 w-3.5 text-orange-500" />
-              <span>Bonus Payroll</span>
-            </button>
-            <button
-              onClick={() => handleSubItemClick('expenses')}
-              className="w-full text-left px-4 py-2 hover:bg-orange-50 hover:text-orange-600 flex items-center gap-2.5 text-slate-700 font-medium transition-colors"
-            >
-              <FileText className="h-3.5 w-3.5 text-orange-500" />
-              <span>Conveyance Approval</span>
-            </button>
-            <button
-              onClick={() => handleSubItemClick('payroll')}
-              className="w-full text-left px-4 py-2 hover:bg-orange-50 hover:text-orange-600 flex items-center gap-2.5 text-slate-700 font-medium transition-colors"
-            >
-              <Sliders className="h-3.5 w-3.5 text-orange-500" />
-              <span>Monthly Pay Process</span>
-            </button>
-            <button
-              onClick={() => handleSubItemClick('payroll')}
-              className="w-full text-left px-4 py-2 hover:bg-orange-50 hover:text-orange-600 flex items-center gap-2.5 text-slate-700 font-medium transition-colors"
-            >
-              <BarChart3 className="h-3.5 w-3.5 text-orange-500" />
-              <span>Salary Report</span>
-            </button>
-          </div>
-        </div>
-
-        {/* 8. Access Control */}
-        <div className="relative group">
-          <button
-            onClick={() => handleMenuToggle('access_control')}
-            className={`flex items-center gap-1.5 px-3.5 py-2.5 border-b-2 transition-colors shrink-0 ${
-              activeTab === 'reports'
-                ? 'bg-slate-200 text-orange-600 border-orange-500 font-bold'
-                : 'border-transparent hover:bg-slate-200 hover:text-slate-900 text-slate-700'
-            }`}
-          >
-            <Lock className="h-4 w-4 text-slate-600" />
-            <span>Access Control</span>
-            <ChevronDown className="h-3 w-3 text-slate-400 group-hover:rotate-180 transition-transform" />
-          </button>
-
-          <div
-            className={`absolute left-0 top-full mt-0 w-52 bg-white border border-slate-200 rounded-b-xl shadow-2xl py-1.5 z-50 font-normal ${
-              openMenu === 'access_control' ? 'block' : 'hidden group-hover:block'
-            }`}
-          >
-            <button
-              onClick={() => handleSubItemClick('reports')}
-              className="w-full text-left px-4 py-2 hover:bg-orange-50 hover:text-orange-600 flex items-center gap-2.5 text-slate-700 font-medium transition-colors"
-            >
-              <Lock className="h-3.5 w-3.5 text-orange-500" />
-              <span>Daily Access Report</span>
-            </button>
-          </div>
-        </div>
-
-        {/* 9. Admin */}
-        <div className="relative group">
-          <button
-            onClick={() => handleMenuToggle('admin')}
-            className={`flex items-center gap-1.5 px-3.5 py-2.5 border-b-2 transition-colors shrink-0 ${
-              activeTab === 'admin'
-                ? 'bg-slate-200 text-orange-600 border-orange-500 font-bold'
-                : 'border-transparent hover:bg-slate-200 hover:text-slate-900 text-slate-700'
-            }`}
-          >
-            <UserCheck className="h-4 w-4 text-slate-600" />
-            <span>Admin</span>
-            <ChevronDown className="h-3 w-3 text-slate-400 group-hover:rotate-180 transition-transform" />
-          </button>
-
-          <div
-            className={`absolute left-0 top-full mt-0 w-52 bg-white border border-slate-200 rounded-b-xl shadow-2xl py-1.5 z-50 font-normal ${
-              openMenu === 'admin' ? 'block' : 'hidden group-hover:block'
-            }`}
-          >
-            <button
-              onClick={() => handleSubItemClick('admin')}
-              className="w-full text-left px-4 py-2 hover:bg-orange-50 hover:text-orange-600 flex items-center gap-2.5 text-slate-700 font-medium transition-colors"
-            >
-              <Users className="h-3.5 w-3.5 text-orange-500" />
-              <span>User Manager</span>
-            </button>
-            <button
-              onClick={() => handleSubItemClick('admin')}
-              className="w-full text-left px-4 py-2 hover:bg-orange-50 hover:text-orange-600 flex items-center gap-2.5 text-slate-700 font-medium transition-colors"
-            >
-              <Lock className="h-3.5 w-3.5 text-orange-500" />
-              <span>Change Password</span>
-            </button>
-            <button
-              onClick={() => handleSubItemClick('admin')}
-              className="w-full text-left px-4 py-2 hover:bg-orange-50 hover:text-orange-600 flex items-center gap-2.5 text-slate-700 font-medium transition-colors"
-            >
-              <MessageSquare className="h-3.5 w-3.5 text-orange-500" />
-              <span>Add Notification</span>
-            </button>
-            <button
-              onClick={() => handleSubItemClick('admin')}
-              className="w-full text-left px-4 py-2 hover:bg-orange-50 hover:text-orange-600 flex items-center gap-2.5 text-slate-700 font-medium transition-colors"
-            >
-              <MessageSquare className="h-3.5 w-3.5 text-orange-500" />
-              <span>SMS Setting</span>
-            </button>
-            <button
-              onClick={() => handleSubItemClick('admin')}
-              className="w-full text-left px-4 py-2 hover:bg-orange-50 hover:text-orange-600 flex items-center gap-2.5 text-slate-700 font-medium transition-colors"
-            >
-              <ShieldAlert className="h-3.5 w-3.5 text-orange-500" />
-              <span>View Error Logs</span>
-            </button>
-            <button
-              onClick={() => handleSubItemClick('admin')}
-              className="w-full text-left px-4 py-2 hover:bg-orange-50 hover:text-orange-600 flex items-center gap-2.5 text-slate-700 font-medium transition-colors"
-            >
-              <Database className="h-3.5 w-3.5 text-orange-500" />
-              <span>Update Database</span>
-            </button>
-          </div>
-        </div>
+              {/* Floating Dropdown Submenu */}
+              <div
+                className={`absolute left-0 top-full mt-0 w-60 bg-white border border-slate-200 rounded-b-xl shadow-2xl py-1.5 z-50 font-normal ${
+                  isOpen ? 'block' : 'hidden group-hover:block'
+                }`}
+              >
+                {items.map((sub) => {
+                  const SubIcon = sub.icon;
+                  return (
+                    <button
+                      key={sub.label}
+                      onClick={() => handleSubItemClick(sub.tab)}
+                      className="w-full text-left px-4 py-1.5 hover:bg-orange-50 hover:text-orange-600 flex items-center gap-2.5 text-slate-700 font-medium transition-colors"
+                    >
+                      <SubIcon className="h-3.5 w-3.5 text-orange-500" />
+                      <span>{sub.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
       </nav>
+
+      {/* Secondary Quick Submenu Toolbar Bar - ALWAYS Visible for Active Category */}
+      {activeSubmenuList.length > 0 && (
+        <div className="bg-slate-50 border-t border-slate-200 px-4 py-1.5 flex items-center gap-1 overflow-x-auto text-[11px]">
+          <span className="text-slate-400 font-bold uppercase tracking-wider text-[9px] mr-2 shrink-0">
+            {activeCategory.replace('_', ' ')} Submenu:
+          </span>
+          {activeSubmenuList.map((sub) => {
+            const Icon = sub.icon;
+            return (
+              <button
+                key={sub.label}
+                onClick={() => handleSubItemClick(sub.tab)}
+                className="px-2.5 py-1 rounded bg-white hover:bg-orange-50 text-slate-700 hover:text-orange-600 border border-slate-200 hover:border-orange-300 font-semibold transition-colors flex items-center gap-1.5 shrink-0 shadow-xs"
+              >
+                <Icon className="h-3 w-3 text-orange-500" />
+                <span>{sub.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
     </header>
   );
 };
