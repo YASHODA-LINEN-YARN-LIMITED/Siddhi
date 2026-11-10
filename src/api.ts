@@ -224,6 +224,12 @@ export const api = {
       body: JSON.stringify(payload),
     }),
 
+  pushToGoogleSheet: (payload: { webAppUrl?: string }) =>
+    request<{ success: boolean; message: string; pushedCount: number }>('/biometric/push-to-google-sheet', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+
   // Attendance
   getDailyAttendance: (params?: { date?: string; employeeId?: string; departmentId?: string; status?: string }) => {
     const q = new URLSearchParams(params as any).toString();

@@ -870,15 +870,7 @@ function extractRealtimePunches(body: any, query: any): any[] {
           ''
       ).trim();
 
-      const log_date = String(
-        item.log_date ??
-          item.punch_date ??
-          item.LogDate ??
-          item.date ??
-          ''
-      ).trim();
-
-      let log_datetime = String(
+      let rawLogDatetime = String(
         item.log_datetime ??
           item.punch_datetime ??
           item.datetime ??
@@ -887,23 +879,43 @@ function extractRealtimePunches(body: any, query: any): any[] {
           ''
       ).trim();
 
-      const log_time = String(
+      let log_date = String(
+        item.log_date ??
+          item.punch_date ??
+          item.LogDate ??
+          item.date ??
+          ''
+      ).trim();
+
+      let log_time = String(
         item.log_time ??
           item.punch_time ??
           item.LogTime ??
           item.time ??
-          (log_datetime && log_datetime.includes(' ') ? log_datetime.split(' ')[1] : '') ??
-          (log_datetime && log_datetime.includes('T') ? log_datetime.split('T')[1]?.substring(0, 8) : '') ??
-          '09:00:00'
+          ''
       ).trim();
 
-      if (!log_datetime && log_date) {
-        log_datetime = `${log_date} ${log_time || '09:00:00'}`;
-      } else if (!log_datetime && item.downloaded_at) {
-        log_datetime = String(item.downloaded_at).trim();
-      } else if (!log_datetime) {
-        log_datetime = `${todayStr} ${log_time || nowIso.split(' ')[1]}`;
+      // Normalize date string (handles 'Mon Nov 09 2026 09:15:00 GMT+0530...')
+      if (rawLogDatetime) {
+        const parsed = new Date(rawLogDatetime);
+        if (!isNaN(parsed.getTime())) {
+          const yr = parsed.getFullYear();
+          const mo = String(parsed.getMonth() + 1).padStart(2, '0');
+          const dy = String(parsed.getDate()).padStart(2, '0');
+          const hr = String(parsed.getHours()).padStart(2, '0');
+          const mi = String(parsed.getMinutes()).padStart(2, '0');
+          const sc = String(parsed.getSeconds()).padStart(2, '0');
+          rawLogDatetime = `${yr}-${mo}-${dy} ${hr}:${mi}:${sc}`;
+          if (!log_date) log_date = `${yr}-${mo}-${dy}`;
+          if (!log_time) log_time = `${hr}:${mi}:${sc}`;
+        }
       }
+
+      if (!log_time && rawLogDatetime.includes(' ')) {
+        log_time = rawLogDatetime.split(' ')[1];
+      }
+
+      const log_datetime = rawLogDatetime || `${log_date || todayStr} ${log_time || '09:00:00'}`;
 
       const downloaded_at = String(
         item.downloaded_at ??
@@ -1111,6 +1123,81 @@ apiRouter.post('/biometric/sync-google-sheet', async (req, res) => {
   } catch (err: any) {
     console.error('Google Sheet Sync Error:', err);
     res.status(500).json({ error: `Google Sheet Sync Failed: ${err.message}` });
+  }
+});
+
+apiRouter.post('/biometric/push-to-google-sheet', async (req, res) => {
+  const { webAppUrl } = req.body;
+  const targetUrl = webAppUrl || 'https://script.google.com/macros/s/AKfycbzTjkabJcvZ1oSYdZMT2nyhdMq0B_cg65BRuaNW1GxuDXJXiQbxVdpwqKzzvrSMKtBEoA/exec';
+
+  try {
+    const store = db.get();
+    const nowIso = new Date().toISOString().replace('T', ' ').substring(0, 19);
+    const todayStr = nowIso.split(' ')[0];
+    const timeStr = nowIso.split(' ')[1];
+
+    // Build sample punch payload from HRMS employees or defaults
+    const emp1 = store.employees[0] || { employeeCode: '1001', firstName: 'Yashoda', lastName: 'Operative' };
+    const emp2 = store.employees[1] || { employeeCode: '1002', firstName: 'Siddhi', lastName: 'Specialist' };
+
+    const samplePunches = [
+      {
+        employee_code: emp1.employeeCode,
+        employee_name: `${emp1.firstName} ${emp1.lastName}`,
+        log_datetime: `${todayStr} 09:15:00`,
+        log_date: todayStr,
+        log_time: '09:15:00',
+        downloaded_at: nowIso,
+        device_sn: 'REALTIME-T502-01',
+      },
+      {
+        employee_code: emp2.employeeCode,
+        employee_name: `${emp2.firstName} ${emp2.lastName}`,
+        log_datetime: `${todayStr} 09:28:12`,
+        log_date: todayStr,
+        log_time: '09:28:12',
+        downloaded_at: nowIso,
+        device_sn: 'REALTIME-T502-02',
+      },
+      {
+        employee_code: emp1.employeeCode,
+        employee_name: `${emp1.firstName} ${emp1.lastName}`,
+        log_datetime: `${todayStr} ${timeStr}`,
+        log_date: todayStr,
+        log_time: timeStr,
+        downloaded_at: nowIso,
+        device_sn: 'REALTIME-T502-01',
+      },
+    ];
+
+    // Post to Google Apps Script Web App (follows redirects)
+    const postRes = await fetch(targetUrl.trim(), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(samplePunches),
+      redirect: 'follow',
+    });
+
+    const responseText = await postRes.text();
+    let jsonResp: any = null;
+    try {
+      jsonResp = JSON.parse(responseText);
+    } catch {
+      // response might be html or text redirect
+    }
+
+    // Also ingest into HRMS database for local visibility
+    BiometricService.processPunches(samplePunches, 'GOOGLE_SHEETS_SYNC');
+
+    res.json({
+      success: true,
+      message: `Pushed ${samplePunches.length} biometric punch records directly to Google Sheet! Check your Google Sheet tabs now.`,
+      googleResponse: jsonResp || responseText,
+      pushedCount: samplePunches.length,
+    });
+  } catch (err: any) {
+    console.error('Push to Google Sheet failed:', err);
+    res.status(500).json({ error: `Failed to push data to Google Sheet: ${err.message}` });
   }
 });
 

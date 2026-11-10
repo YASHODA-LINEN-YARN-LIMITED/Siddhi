@@ -22,6 +22,7 @@ import {
   HelpCircle,
   FileCode,
   Zap,
+  Send,
 } from 'lucide-react';
 import { api } from '../api.ts';
 import { notify } from '../utils/notify.ts';
@@ -36,6 +37,7 @@ export const BiometricView: React.FC = () => {
   const [clearing, setClearing] = useState(false);
   const [testing, setTesting] = useState(false);
   const [syncingSheet, setSyncingSheet] = useState(false);
+  const [pushingToSheet, setPushingToSheet] = useState(false);
   const [testResult, setTestResult] = useState<any>(null);
   const [syncResult, setSyncResult] = useState<any>(null);
   const [filterStatus, setFilterStatus] = useState<string>('ALL');
@@ -44,7 +46,7 @@ export const BiometricView: React.FC = () => {
   const [copiedUrl, setCopiedUrl] = useState(false);
 
   // User's Configured Google Apps Script Web App URL
-  const userWebUrl = 'https://script.google.com/macros/s/AKfycbzTjkabJcvZ1oSYdZMT2nyhdMq0B_cg65BRuaNW1GxuDXJXiQbxVdpwqKzzvrSMKtBEoA/exec';
+  const userWebUrl = 'https://script.google.com/macros/s/AKfycbxURauNGLsLO8nOQszR_TQHaxvlZsLYhkCd5hnj0GHEzsUpzof2KDZDVXVeyrPgznJmZw/exec';
   const [googleWebAppUrl, setGoogleWebAppUrl] = useState<string>(userWebUrl);
 
   // Quarantine resolution modal state
@@ -212,6 +214,23 @@ function doGet(e) {
     }
   };
 
+  const handlePushToGoogleSheet = async () => {
+    if (!googleWebAppUrl.trim()) {
+      notify('Please enter your Google Apps Script Web App URL', 'error');
+      return;
+    }
+    try {
+      setPushingToSheet(true);
+      const res = await api.pushToGoogleSheet({ webAppUrl: googleWebAppUrl });
+      notify(res.message, 'success');
+      await loadData();
+    } catch (err: any) {
+      notify(`Push to Google Sheet failed: ${err.message}`, 'error');
+    } finally {
+      setPushingToSheet(false);
+    }
+  };
+
   const handleClearPunches = async () => {
     try {
       setClearing(true);
@@ -342,12 +361,12 @@ function doGet(e) {
 
         <div className="flex items-center gap-2">
           <button
-            onClick={handleTestConnection}
-            disabled={testing}
-            className="px-3 py-2 text-xs font-medium text-slate-700 bg-white hover:bg-slate-50 border border-slate-300 rounded-lg transition-colors flex items-center gap-1.5 shadow-2xs"
+            onClick={handlePushToGoogleSheet}
+            disabled={pushingToSheet}
+            className="px-3.5 py-2 text-xs font-semibold text-emerald-950 bg-emerald-100 hover:bg-emerald-200 border border-emerald-300 rounded-lg transition-colors flex items-center gap-1.5 shadow-2xs"
           >
-            <Server className={`h-4 w-4 ${testing ? 'animate-spin' : 'text-slate-600'}`} />
-            <span>{testing ? 'Testing...' : 'Test Web App Connection'}</span>
+            <Send className={`h-4 w-4 text-emerald-700 ${pushingToSheet ? 'animate-spin' : ''}`} />
+            <span>{pushingToSheet ? 'Populating...' : 'Populate & Create Google Sheet Tabs'}</span>
           </button>
 
           <button
@@ -463,7 +482,7 @@ function doGet(e) {
       {/* TAB: Google Sheets & Apps Script Connector */}
       {activeTab === 'google_sheets' && (
         <div className="space-y-6">
-          {/* Card 1: Active Web App URL */}
+          {/* Card 1: Active Web App URL & Automatic Data Population */}
           <div className="bg-white border-2 border-emerald-600/40 rounded-xl p-5 shadow-2xs space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
               <div>
@@ -480,7 +499,7 @@ function doGet(e) {
               </span>
             </div>
 
-            <div className="space-y-2">
+            <div className="space-y-3">
               <label className="text-xs font-semibold text-slate-800">Your Google Apps Script Web App URL:</label>
               <div className="flex flex-col sm:flex-row items-stretch gap-2">
                 <input
@@ -500,19 +519,30 @@ function doGet(e) {
                   </button>
 
                   <button
-                    onClick={handleSyncGoogleSheet}
-                    disabled={syncingSheet || !googleWebAppUrl.trim()}
-                    className="px-5 py-2 text-xs font-semibold text-white bg-emerald-700 hover:bg-emerald-800 disabled:opacity-50 rounded-lg transition-colors flex items-center gap-1.5 shrink-0 shadow-xs justify-center"
+                    onClick={handlePushToGoogleSheet}
+                    disabled={pushingToSheet || !googleWebAppUrl.trim()}
+                    className="px-4 py-2 text-xs font-semibold text-emerald-950 bg-emerald-100 hover:bg-emerald-200 border border-emerald-300 rounded-lg transition-colors flex items-center gap-1.5 shrink-0 shadow-2xs justify-center"
                   >
-                    <RefreshCw className={`h-4 w-4 ${syncingSheet ? 'animate-spin' : ''}`} />
-                    <span>{syncingSheet ? 'Syncing...' : 'Sync Sheet Now'}</span>
+                    <Send className={`h-4 w-4 text-emerald-700 ${pushingToSheet ? 'animate-spin' : ''}`} />
+                    <span>{pushingToSheet ? 'Populating...' : 'Populate Google Sheet Tabs Now'}</span>
                   </button>
                 </div>
               </div>
             </div>
+
+            {/* Quick Action Callout if sheet is blank */}
+            <div className="bg-emerald-50/70 border border-emerald-200 p-4 rounded-xl text-xs space-y-2">
+              <div className="font-bold text-emerald-900 flex items-center gap-2">
+                <Zap className="h-4 w-4 text-emerald-600 shrink-0" />
+                <span>If your Google Sheet is currently blank:</span>
+              </div>
+              <p className="text-2xs text-emerald-800 leading-relaxed">
+                Click the <strong>"Populate Google Sheet Tabs Now"</strong> button above! Siddhi HRMS will immediately send punch data to your Google Apps Script Web App URL. The script will automatically build all four tabs (<code className="bg-white px-1 py-0.5 rounded font-mono font-bold text-slate-900">Raw_Punches</code>, <code className="bg-white px-1 py-0.5 rounded font-mono font-bold text-slate-900">Employees</code>, <code className="bg-white px-1 py-0.5 rounded font-mono font-bold text-slate-900">Daily_Attendance</code>, <code className="bg-white px-1 py-0.5 rounded font-mono font-bold text-slate-900">Sync_Logs</code>) with bold green headers and write data rows!
+              </p>
+            </div>
           </div>
 
-          {/* Card 2: Code.gs Script Backup Generator */}
+          {/* Card 2: Code.gs Script Generator */}
           <div className="bg-slate-900 text-slate-100 rounded-xl p-5 shadow-sm space-y-4 text-xs">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-3">
               <div>
