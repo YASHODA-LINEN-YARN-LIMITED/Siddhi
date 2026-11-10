@@ -166,10 +166,54 @@
       "emergencyContactPhone": "",
       "address": "Biometric Device (REALTIME-T502-01)",
       "currentSalaryStructureId": "sal-standard"
+    },
+    {
+      "id": "emp-bio-e1023-mwac3klg",
+      "employeeCode": "E1023",
+      "firstName": "Employee",
+      "lastName": "E1023",
+      "email": "e1023@machine.local",
+      "phone": "",
+      "gender": "OTHER",
+      "dateOfBirth": "1990-01-01",
+      "dateOfJoining": "2026-11-10",
+      "companyId": "comp-101",
+      "branchId": "br-main",
+      "departmentId": "dept-gen",
+      "designationId": "desig-gen",
+      "gradeId": "grd-l1",
+      "status": "ACTIVE",
+      "employmentType": "FULL_TIME",
+      "probationPeriodMonths": 0,
+      "confirmationDate": "2026-11-10",
+      "role": "EMPLOYEE",
+      "panNumber": "",
+      "nationalId": "",
+      "pfNumber": "",
+      "bankName": "",
+      "bankAccountNumber": "",
+      "bankIfsc": "",
+      "emergencyContactName": "",
+      "emergencyContactRelation": "",
+      "emergencyContactPhone": "",
+      "address": "Biometric Device (SN-009128)",
+      "currentSalaryStructureId": "sal-standard"
     }
   ],
   "employeeDocuments": [],
   "rawBiometricPunches": [
+    {
+      "id": "punch-1794293628676-lat9u",
+      "employeeCode": "E1023",
+      "logDatetime": "2026-11-10 08:45:00",
+      "logTime": "08:45:00",
+      "downloadedAt": "2026-11-10 08:46:00",
+      "deviceSn": "SN-009128",
+      "syncBatchId": "sync-1794293628676",
+      "createdAt": "2026-11-10T06:53:48.676Z",
+      "status": "PROCESSED",
+      "resolvedEmployeeId": "emp-bio-e1023-mwac3klg"
+    },
     {
       "id": "punch-1794292390996-plsfe",
       "employeeCode": "1003",
@@ -227,13 +271,28 @@
     "pollingIntervalMinutes": 5,
     "requestTimeoutSeconds": 30,
     "lastSyncStatus": "SUCCESS",
-    "recordsSyncedLastRun": 3,
+    "recordsSyncedLastRun": 1,
     "allowCsvFallback": true,
     "timezone": "Asia/Kolkata",
-    "lastSyncAt": "2026-11-10 06:33:10",
-    "syncCursor": "2026-11-10 06:33:10"
+    "lastSyncAt": "2026-11-10 06:53:48",
+    "syncCursor": "2026-11-10 06:53:48"
   },
   "dailyAttendance": [
+    {
+      "id": "att-2026-11-10-E1023",
+      "employeeId": "emp-bio-e1023-mwac3klg",
+      "date": "2026-11-10",
+      "shiftId": "shift-gen",
+      "firstIn": "08:45:00",
+      "punchCount": 1,
+      "workHours": 0,
+      "status": "HALF_DAY",
+      "lateMinutes": 0,
+      "earlyExitMinutes": 0,
+      "overtimeMinutes": 0,
+      "isCorrectionApplied": false,
+      "source": "BIOMETRIC"
+    },
     {
       "id": "att-2026-11-10-1003",
       "employeeId": "emp-bio-1003-mwabd1lg",
@@ -389,7 +448,21 @@
   "onboardingChecklists": [],
   "offboardingRecords": [],
   "helpdeskTickets": [],
-  "auditLogs": [],
+  "auditLogs": [
+    {
+      "id": "aud-1794293628686-592",
+      "timestamp": "2026-11-10 06:53:48",
+      "actorId": "REALTIME-CLOUD",
+      "actorName": "Realtime Cloud Gateway",
+      "actorRole": "SYSTEM",
+      "action": "INGEST_LIVE_PUNCHES",
+      "module": "BIOMETRIC_ATTENDANCE",
+      "entityId": "sync-1794293628676",
+      "entityName": "Realtime Parallel Export",
+      "details": "Live ingestion via webhook: 1 processed, 0 duplicates ignored. Auto-forwarded to Google Sheet.",
+      "ipAddress": "127.0.0.1"
+    }
+  ],
   "statutoryRuleConfig": {
     "id": "stat-in-01",
     "jurisdiction": "IN",
