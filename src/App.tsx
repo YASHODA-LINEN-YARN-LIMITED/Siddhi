@@ -146,54 +146,15 @@ export default function App() {
         onRoleSwitch={handleRoleSwitch}
         activeBranchName={activeBranchName}
         onWebPunchSuccess={loadSession}
+        activeTab={activeTab}
+        onSelectTab={(tab) => setActiveTab(tab)}
       />
 
-      {/* Mobile nav toggle banner */}
-      <div className="md:hidden flex items-center justify-between bg-white border-b border-slate-200 px-4 py-2">
-        <span className="text-xs font-semibold text-slate-700 capitalize">
-          Current View: {activeTab}
-        </span>
-        <button
-          onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-          className="p-1.5 rounded-md border border-slate-200 text-slate-600 hover:bg-slate-100"
-        >
-          {mobileMenuOpen ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
-        </button>
-      </div>
-
-      {/* Main Content Area: Sidebar + Scrollable View */}
+      {/* Main Content Area: Scrollable View (No Sidebar) */}
       <div className="flex flex-1 overflow-hidden relative">
-        {/* Desktop Sidebar */}
-        <div className="hidden md:flex">
-          <Sidebar
-            activeTab={activeTab}
-            onSelectTab={(tab) => {
-              setActiveTab(tab);
-            }}
-            userRole={currentUser.role}
-          />
-        </div>
-
-        {/* Mobile Sidebar Overlay */}
-        {mobileMenuOpen && (
-          <div className="md:hidden absolute inset-0 z-40 bg-black/50 flex">
-            <div className="w-72 bg-white h-full shadow-2xl overflow-y-auto">
-              <Sidebar
-                activeTab={activeTab}
-                onSelectTab={(tab) => {
-                  setActiveTab(tab);
-                  setMobileMenuOpen(false);
-                }}
-                userRole={currentUser.role}
-              />
-            </div>
-            <div className="flex-1" onClick={() => setMobileMenuOpen(false)} />
-          </div>
-        )}
-
-        {/* Scrollable View Container */}
-        <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 bg-slate-100">
-          <div className="max-w-7xl mx-auto">
+        {/* Scrollable View Container - Full Width */}
+        <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 bg-slate-100 w-full">
+          <div className="w-full max-w-[1600px] mx-auto">
             {activeTab === 'dashboard' && (
               <DashboardView
                 userRole={currentUser.role}

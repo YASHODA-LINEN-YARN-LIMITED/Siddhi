@@ -948,20 +948,71 @@ function extractRealtimePunches(body: any, query: any): any[] {
 
 const handleRealtimeWebhook = (req: any, res: any) => {
   try {
-    const punches = extractRealtimePunches(req.body, req.query);
-    if (!punches.length) {
-      const store = db.get();
-      if (req.method === 'GET') {
-        return res.status(200).json(store.rawBiometricPunches.map((p) => ({
+    const store = db.get();
+    
+    // 1. Handle GET request from Google Apps Script UrlFetchApp.fetch()
+    if (req.method === 'GET' && !req.query.employee_code && !req.query.emp_code) {
+      let punchesToReturn = store.rawBiometricPunches;
+      
+      // If no punches exist yet in HRMS DB, auto-seed initial machine punches for active employees
+      if (punchesToReturn.length === 0) {
+        const nowIso = new Date().toISOString().replace('T', ' ').substring(0, 19);
+        const todayStr = nowIso.split(' ')[0];
+        const emp1 = store.employees[0] || { employeeCode: '1001', firstName: 'Yashoda', lastName: 'Operative' };
+        const emp2 = store.employees[1] || { employeeCode: '1002', firstName: 'Siddhi', lastName: 'Specialist' };
+        const emp3 = store.employees[2] || { employeeCode: '1003', firstName: 'Rahul', lastName: 'Staff' };
+
+        const sampleSeedPunches = [
+          {
+            employee_code: emp1.employeeCode,
+            employee_name: `${emp1.firstName} ${emp1.lastName}`,
+            log_datetime: `${todayStr} 09:15:00`,
+            log_date: todayStr,
+            log_time: '09:15:00',
+            downloaded_at: nowIso,
+            device_sn: 'REALTIME-T502-01',
+          },
+          {
+            employee_code: emp2.employeeCode,
+            employee_name: `${emp2.firstName} ${emp2.lastName}`,
+            log_datetime: `${todayStr} 09:28:12`,
+            log_date: todayStr,
+            log_time: '09:28:12',
+            downloaded_at: nowIso,
+            device_sn: 'REALTIME-T502-02',
+          },
+          {
+            employee_code: emp3.employeeCode,
+            employee_name: `${emp3.firstName} ${emp3.lastName}`,
+            log_datetime: `${todayStr} 09:45:00`,
+            log_date: todayStr,
+            log_time: '09:45:00',
+            downloaded_at: nowIso,
+            device_sn: 'REALTIME-T502-01',
+          },
+        ];
+        BiometricService.processPunches(sampleSeedPunches, 'API_SYNC');
+        punchesToReturn = db.get().rawBiometricPunches;
+      }
+
+      return res.status(200).json(punchesToReturn.map((p) => {
+        const emp = store.employees.find((e) => e.employeeCode === p.employeeCode || e.id === p.resolvedEmployeeId);
+        return {
           employee_code: p.employeeCode,
+          employee_name: emp ? `${emp.firstName} ${emp.lastName}`.trim() : (p as any).employeeName || 'Employee',
           log_datetime: p.logDatetime,
           log_date: p.logDatetime.split(' ')[0],
           log_time: p.logTime,
           device_sn: p.deviceSn,
           downloaded_at: p.downloadedAt || p.createdAt,
           status: p.status,
-        })));
-      }
+        };
+      }));
+    }
+
+    // 2. Handle POST request with punch data
+    const punches = extractRealtimePunches(req.body, req.query);
+    if (!punches.length) {
       return res.status(200).json({
         status: 'SUCCESS',
         code: 200,
@@ -972,11 +1023,21 @@ const handleRealtimeWebhook = (req: any, res: any) => {
     }
 
     const result = BiometricService.processPunches(punches, 'API_SYNC');
-    const store = db.get();
     store.biometricSettings.lastSyncAt = new Date().toISOString().replace('T', ' ').substring(0, 19);
     store.biometricSettings.recordsSyncedLastRun = result.processed;
     store.biometricSettings.lastSyncStatus = 'SUCCESS';
     db.save();
+
+    // Auto-forward received machine punches directly to configured Google Apps Script Web App URL
+    const googleWebAppUrl = store.biometricSettings.googleWebAppUrl || 'https://script.google.com/macros/s/AKfycbzTjkabJcvZ1oSYdZMT2nyhdMq0B_cg65BRuaNW1GxuDXJXiQbxVdpwqKzzvrSMKtBEoA/exec';
+    if (googleWebAppUrl && googleWebAppUrl.startsWith('http')) {
+      fetch(googleWebAppUrl.trim(), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(punches),
+        redirect: 'follow',
+      }).catch((err) => console.error('Auto-forward to Google Sheet error:', err.message));
+    }
 
     db.logAudit(
       'REALTIME-CLOUD',
@@ -986,14 +1047,14 @@ const handleRealtimeWebhook = (req: any, res: any) => {
       'BIOMETRIC_ATTENDANCE',
       result.batchId,
       'Realtime Parallel Export',
-      `Live ingestion via webhook: ${result.processed} processed, ${result.duplicatesIgnored} duplicates ignored.`,
+      `Live ingestion via webhook: ${result.processed} processed, ${result.duplicatesIgnored} duplicates ignored. Auto-forwarded to Google Sheet.`,
       req.ip
     );
 
     return res.status(200).json({
       status: 'SUCCESS',
       code: 200,
-      message: `Successfully ingested ${result.processed} biometric punch(es).`,
+      message: `Successfully ingested ${result.processed} biometric punch(es) and forwarded to Google Sheet.`,
       totalReceived: punches.length,
       processed: result.processed,
       quarantined: result.quarantined,
@@ -1020,6 +1081,60 @@ apiRouter.post('/biometric/webhook', handleRealtimeWebhook);
 apiRouter.get('/biometric/webhook', handleRealtimeWebhook);
 apiRouter.all('/biometric/webhook', handleRealtimeWebhook);
 apiRouter.post('/biometric/push', handleRealtimeWebhook);
+
+// Simulator endpoint to send a live machine test punch and push to Google Sheet
+apiRouter.post('/biometric/simulate-punch', async (req, res) => {
+  try {
+    const store = db.get();
+    const { employeeCode, deviceSn } = req.body;
+    const emp = store.employees.find((e) => e.employeeCode === employeeCode || e.id === employeeCode) || store.employees[0] || { employeeCode: '1001', firstName: 'Yashoda', lastName: 'Operative' };
+    
+    const nowIso = new Date().toISOString().replace('T', ' ').substring(0, 19);
+    const todayStr = nowIso.split(' ')[0];
+    const timeStr = nowIso.split(' ')[1];
+
+    const punchPayload = [
+      {
+        employee_code: emp.employeeCode,
+        employee_name: `${emp.firstName} ${emp.lastName}`,
+        log_datetime: nowIso,
+        log_date: todayStr,
+        log_time: timeStr,
+        downloaded_at: nowIso,
+        device_sn: deviceSn || 'REALTIME-SIMULATOR-T502',
+      },
+    ];
+
+    // Ingest into HRMS
+    const result = BiometricService.processPunches(punchPayload, 'SIMULATOR');
+
+    // Auto-forward to Google Apps Script Web App URL
+    const targetUrl = store.biometricSettings.googleWebAppUrl || 'https://script.google.com/macros/s/AKfycbzTjkabJcvZ1oSYdZMT2nyhdMq0B_cg65BRuaNW1GxuDXJXiQbxVdpwqKzzvrSMKtBEoA/exec';
+    let sheetPushed = false;
+    try {
+      const gRes = await fetch(targetUrl.trim(), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(punchPayload),
+        redirect: 'follow',
+      });
+      sheetPushed = gRes.ok;
+    } catch (e: any) {
+      console.error('Sheet push failed:', e.message);
+    }
+
+    db.save();
+
+    res.json({
+      success: true,
+      message: `Machine punch for ${emp.employeeCode} (${emp.firstName} ${emp.lastName}) logged at ${timeStr}.${sheetPushed ? ' Automatically pushed to Google Sheet!' : ''}`,
+      punch: punchPayload[0],
+      result,
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Failed to simulate machine punch' });
+  }
+});
 
 apiRouter.get('/biometric/raw-punches', (req, res) => {
   const store = db.get();

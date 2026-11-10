@@ -94,9 +94,9 @@ function getInitialSeed(): DatabaseSchema {
   const companies: Company[] = [
     {
       id: companyId,
-      code: 'SIDDHI-ORG',
-      name: 'Siddhi Organization',
-      legalName: 'Siddhi Organization',
+      code: 'YASHODA-LINEN',
+      name: 'Yashoda Linen Limited',
+      legalName: 'Yashoda Linen Limited',
       taxId: '',
       currency: 'INR',
       timezone: 'Asia/Kolkata',

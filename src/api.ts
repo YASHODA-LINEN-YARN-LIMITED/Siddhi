@@ -230,6 +230,12 @@ export const api = {
       body: JSON.stringify(payload),
     }),
 
+  simulateMachinePunch: (payload?: { employeeCode?: string; deviceSn?: string }) =>
+    request<{ success: boolean; message: string; punch: any; result: any }>('/biometric/simulate-punch', {
+      method: 'POST',
+      body: JSON.stringify(payload || {}),
+    }),
+
   // Attendance
   getDailyAttendance: (params?: { date?: string; employeeId?: string; departmentId?: string; status?: string }) => {
     const q = new URLSearchParams(params as any).toString();

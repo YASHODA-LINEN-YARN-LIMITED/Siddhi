@@ -67,90 +67,122 @@ export const BiometricView: React.FC = () => {
  * Webhook API URL: ${webhookApiUrl}
  */
 
+// 1. Automatically adds a custom menu in Google Sheets when opened!
+function onOpen() {
+  setupAutoSheets();
+  SpreadsheetApp.getUi()
+    .createMenu('🚀 Siddhi HRMS')
+    .addItem('1. Initialize All Sheets & Headers', 'setupAutoSheets')
+    .addItem('2. Pull Live Biometric Punches Now', 'pullBiometricDeviceDataToSheet')
+    .addItem('3. Enable 30-Min Auto Sync Trigger', 'create30MinSyncTrigger')
+    .addToUi();
+}
+
+// 2. Creates all 4 sheets automatically with colored headers
 function setupAutoSheets() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   
-  // 1. Raw_Punches sheet
+  // Sheet 1: Raw_Punches
   let punchSheet = ss.getSheetByName('Raw_Punches');
   if (!punchSheet) {
     punchSheet = ss.insertSheet('Raw_Punches');
+  }
+  if (punchSheet.getLastRow() === 0) {
     punchSheet.appendRow([
       'Punch_ID', 'Employee_Code', 'Employee_Name', 'Log_Datetime', 
       'Log_Date', 'Log_Time', 'Device_Serial', 'Downloaded_At', 'Status', 'Received_At'
     ]);
     punchSheet.getRange(1, 1, 1, 10).setFontWeight('bold').setBackground('#E8F5E9');
   }
-  
-  // 2. Employees sheet
+
+  // Sheet 2: Employees
   let empSheet = ss.getSheetByName('Employees');
   if (!empSheet) {
     empSheet = ss.insertSheet('Employees');
+  }
+  if (empSheet.getLastRow() === 0) {
     empSheet.appendRow([
       'Employee_Code', 'First_Name', 'Last_Name', 'Department', 'Designation', 'Status'
     ]);
     empSheet.getRange(1, 1, 1, 6).setFontWeight('bold').setBackground('#E3F2FD');
   }
-  
-  // 3. Daily_Attendance sheet
+
+  // Sheet 3: Daily_Attendance
   let attSheet = ss.getSheetByName('Daily_Attendance');
   if (!attSheet) {
     attSheet = ss.insertSheet('Daily_Attendance');
+  }
+  if (attSheet.getLastRow() === 0) {
     attSheet.appendRow([
       'Date', 'Employee_Code', 'Employee_Name', 'First_In', 'Last_Out', 'Work_Hours', 'Status'
     ]);
     attSheet.getRange(1, 1, 1, 7).setFontWeight('bold').setBackground('#FFF8E1');
   }
-  
-  // 4. Sync_Logs sheet
+
+  // Sheet 4: Sync_Logs
   let logSheet = ss.getSheetByName('Sync_Logs');
   if (!logSheet) {
     logSheet = ss.insertSheet('Sync_Logs');
+  }
+  if (logSheet.getLastRow() === 0) {
     logSheet.appendRow(['Timestamp', 'Punches_Received', 'Status', 'Response_Details']);
     logSheet.getRange(1, 1, 1, 4).setFontWeight('bold').setBackground('#F3E5F5');
   }
 }
 
-// Pull biometric punches from HRMS Webhook API directly into Google Sheet
+// 3. Pulls live punches from Siddhi HRMS API and writes to Google Sheet
 function pullBiometricDeviceDataToSheet() {
   setupAutoSheets();
   const webhookUrl = '${webhookApiUrl}';
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const punchSheet = ss.getSheetByName('Raw_Punches');
-  
-  const response = UrlFetchApp.fetch(webhookUrl, {
-    method: 'get',
-    headers: { 'Accept': 'application/json' },
-    muteHttpExceptions: true
-  });
-  
-  if (response.getResponseCode() === 200) {
-    const text = response.getContentText();
-    let punches = [];
-    try {
-      punches = JSON.parse(text);
-    } catch(e) {}
-    
-    if (Array.isArray(punches) && punches.length > 0) {
-      const nowStr = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd HH:mm:ss");
-      for (let i = 0; i < punches.length; i++) {
-        const p = punches[i];
-        punchSheet.appendRow([
-          'P-' + Date.now() + '-' + i,
-          p.employee_code || p.emp_code || '',
-          p.employee_name || '',
-          p.log_datetime || '',
-          p.log_date || '',
-          p.log_time || '',
-          p.device_sn || 'REALTIME-DEVICE',
-          p.downloaded_at || nowStr,
-          p.status || 'PROCESSED',
-          nowStr
-        ]);
+  const ui = (typeof SpreadsheetApp.getUi === 'function') ? SpreadsheetApp.getUi() : null;
+
+  try {
+    const response = UrlFetchApp.fetch(webhookUrl, {
+      method: 'get',
+      headers: { 'Accept': 'application/json' },
+      muteHttpExceptions: true
+    });
+
+    const statusCode = response.getResponseCode();
+    if (statusCode === 200) {
+      const text = response.getContentText();
+      let punches = [];
+      try {
+        punches = JSON.parse(text);
+      } catch (e) {}
+
+      if (Array.isArray(punches) && punches.length > 0) {
+        const nowStr = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd HH:mm:ss");
+        for (let i = 0; i < punches.length; i++) {
+          const p = punches[i];
+          punchSheet.appendRow([
+            'P-' + Date.now() + '-' + i,
+            p.employee_code || p.emp_code || '',
+            p.employee_name || '',
+            p.log_datetime || '',
+            p.log_date || '',
+            p.log_time || '',
+            p.device_sn || 'REALTIME-DEVICE',
+            p.downloaded_at || nowStr,
+            p.status || 'PROCESSED',
+            nowStr
+          ]);
+        }
+        if (ui) ui.alert('Success: Fetched & added ' + punches.length + ' biometric punch(es) to Google Sheet!');
+      } else {
+        if (ui) ui.alert('Connected to Siddhi HRMS API successfully! No punches pending.');
       }
+    } else {
+      if (ui) ui.alert('API Response Error: Status code ' + statusCode);
     }
+  } catch (err) {
+    if (ui) ui.alert('Error pulling data: ' + err.toString());
   }
 }
 
+// 4. Receives direct POST payloads from Biometric Hardware or HRMS
 function doPost(e) {
   try {
     setupAutoSheets();
@@ -162,15 +194,15 @@ function doPost(e) {
       const data = JSON.parse(e.postData.contents);
       contents = Array.isArray(data) ? data : [data];
     }
-    
+
     const nowStr = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd HH:mm:ss");
     let addedCount = 0;
-    
+
     for (let i = 0; i < contents.length; i++) {
       const p = contents[i];
       const empCode = String(p.employee_code || p.emp_code || p.UserId || '').trim();
       if (!empCode) continue;
-      
+
       const empName = String(p.employee_name || p.UserName || '').trim();
       const logDt = String(p.log_datetime || p.LogDateTime || nowStr).trim();
       const logDate = String(p.log_date || logDt.split(' ')[0] || '').trim();
@@ -178,13 +210,13 @@ function doPost(e) {
       const deviceSn = String(p.device_sn || p.DeviceSN || 'REALTIME-DEVICE').trim();
       const downloadedAt = String(p.downloaded_at || nowStr).trim();
       const punchId = 'P-' + Date.now() + '-' + Math.floor(Math.random() * 1000);
-      
+
       punchSheet.appendRow([
         punchId, empCode, empName, logDt, logDate, logTime, deviceSn, downloadedAt, 'PROCESSED', nowStr
       ]);
       addedCount++;
     }
-    
+
     return ContentService.createTextOutput(JSON.stringify({
       status: 'SUCCESS',
       code: 200,
@@ -200,12 +232,13 @@ function doPost(e) {
   }
 }
 
+// 5. Handles GET requests
 function doGet(e) {
   setupAutoSheets();
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const punchSheet = ss.getSheetByName('Raw_Punches');
   const data = punchSheet.getDataRange().getValues();
-  
+
   const punches = [];
   for (let r = 1; r < data.length; r++) {
     punches.push({
@@ -219,9 +252,26 @@ function doGet(e) {
       status: String(data[r][8])
     });
   }
-  
+
   return ContentService.createTextOutput(JSON.stringify(punches))
     .setMimeType(ContentService.MimeType.JSON);
+}
+
+// 6. Configures recurring 30-minute auto sync trigger
+function create30MinSyncTrigger() {
+  const triggers = ScriptApp.getProjectTriggers();
+  for (let i = 0; i < triggers.length; i++) {
+    if (triggers[i].getHandlerFunction() === 'pullBiometricDeviceDataToSheet') {
+      ScriptApp.deleteTrigger(triggers[i]);
+    }
+  }
+  ScriptApp.newTrigger('pullBiometricDeviceDataToSheet')
+    .timeBased()
+    .everyMinutes(30)
+    .create();
+  
+  const ui = (typeof SpreadsheetApp.getUi === 'function') ? SpreadsheetApp.getUi() : null;
+  if (ui) ui.alert('30-Minute Auto Sync Trigger created! Google Sheet will pull punches automatically every 30 minutes.');
 }`;
 
   const handleCopyGsScript = () => {
@@ -401,6 +451,24 @@ function doGet(e) {
       ? rawPunches
       : rawPunches.filter((p) => p.status === filterStatus);
 
+  const [simulatingPunch, setSimulatingPunch] = useState(false);
+
+  const handleSimulatePunch = async () => {
+    try {
+      setSimulatingPunch(true);
+      const res = await api.simulateMachinePunch({
+        employeeCode: employees[0]?.employeeCode || '1001',
+        deviceSn: 'REALTIME-T502-01',
+      });
+      notify(res.message, 'success');
+      await loadData();
+    } catch (err: any) {
+      notify(`Machine punch simulation failed: ${err.message}`, 'error');
+    } finally {
+      setSimulatingPunch(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -414,7 +482,16 @@ function doGet(e) {
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            onClick={handleSimulatePunch}
+            disabled={simulatingPunch}
+            className="px-3.5 py-2 text-xs font-semibold text-amber-950 bg-amber-100 hover:bg-amber-200 border border-amber-300 rounded-lg transition-colors flex items-center gap-1.5 shadow-2xs"
+          >
+            <Zap className={`h-4 w-4 text-amber-700 ${simulatingPunch ? 'animate-spin' : ''}`} />
+            <span>{simulatingPunch ? 'Sending Punch...' : 'Send Live Test Punch to Google Sheet'}</span>
+          </button>
+
           <button
             onClick={handlePushToGoogleSheet}
             disabled={pushingToSheet}
@@ -595,15 +672,22 @@ function doGet(e) {
             </div>
 
             {/* Quick Action Callout */}
-            <div className="bg-emerald-50/70 border border-emerald-200 p-4 rounded-xl text-xs space-y-2">
-              <div className="font-bold text-emerald-900 flex items-center gap-2">
+            <div className="bg-emerald-50/70 border border-emerald-200 p-4 rounded-xl text-xs space-y-2.5">
+              <div className="font-bold text-emerald-900 flex items-center gap-2 text-xs">
                 <Zap className="h-4 w-4 text-emerald-600 shrink-0" />
-                <span>Automated Data Pipeline:</span>
+                <span>3 Ways Machine Punches Reach Your Google Sheet:</span>
               </div>
-              <p className="text-2xs text-emerald-800 leading-relaxed">
-                1. Biometric Device pushes to Webhook API URL: <code className="bg-white px-1 py-0.5 rounded font-mono font-bold text-slate-900">{webhookApiUrl}</code>.<br />
-                2. Code.gs function <code className="bg-white px-1 py-0.5 rounded font-mono font-bold text-slate-900">pullBiometricDeviceDataToSheet()</code> pulls all punches into your Google Sheet tabs automatically!
-              </p>
+              <ul className="text-2xs text-emerald-800 space-y-1.5 leading-relaxed list-disc pl-4">
+                <li>
+                  <strong>Realtime Machine Auto-Forward:</strong> When your biometric terminal pushes to <code className="bg-white px-1 py-0.5 rounded font-mono font-bold text-slate-900">{webhookApiUrl}</code>, HRMS automatically forwards the punch to your Google Sheet in real time.
+                </li>
+                <li>
+                  <strong>Direct Button in HRMS:</strong> Click <strong className="bg-white px-1.5 py-0.5 rounded font-bold text-slate-900">Send Live Test Punch to Google Sheet</strong> or <strong className="bg-white px-1.5 py-0.5 rounded font-bold text-slate-900">Populate Google Sheet Tabs Now</strong> above to send sample & live punches instantly into your sheet!
+                </li>
+                <li>
+                  <strong>Google Sheets Custom Menu:</strong> Open your Google Sheet and click top menu <strong className="bg-white px-1.5 py-0.5 rounded font-bold text-slate-900">🚀 Siddhi HRMS &gt; 2. Pull Live Biometric Punches Now</strong> or <strong className="bg-white px-1.5 py-0.5 rounded font-bold text-slate-900">3. Enable 30-Min Auto Sync Trigger</strong>.
+                </li>
+              </ul>
             </div>
           </div>
 

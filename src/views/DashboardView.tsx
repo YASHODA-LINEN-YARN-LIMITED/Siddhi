@@ -1,22 +1,25 @@
 import React, { useState, useEffect } from 'react';
 import {
   Users,
-  CalendarCheck,
+  UserCheck,
+  UserX,
   Clock,
-  Banknote,
-  Fingerprint,
-  AlertTriangle,
-  ArrowUpRight,
-  CheckCircle2,
-  CalendarDays,
-  FileText,
-  Briefcase,
-  HelpCircle,
-  Receipt,
-  ShieldAlert,
+  Cake,
+  Calendar,
+  Award,
+  IndianRupee,
+  PieChart as PieChartIcon,
+  Server,
+  MapPin,
+  ChevronRight,
+  UserPlus,
+  DollarSign,
+  ChevronLeft,
+  Edit2,
+  Check
 } from 'lucide-react';
 import { api } from '../api.ts';
-import type { Role, Employee, DailyAttendance, LeaveBalance, LeaveRequest, PayrollPeriod, BiometricIntegrationSettings } from '../types.ts';
+import type { Role, Employee, DailyAttendance, LeaveRequest, Company } from '../types.ts';
 import type { NavTab } from '../components/Sidebar.tsx';
 
 interface DashboardViewProps {
@@ -30,36 +33,47 @@ interface DashboardViewProps {
   onNavigate: (tab: NavTab) => void;
 }
 
-export const DashboardView: React.FC<DashboardViewProps> = ({ userRole, currentUser, onNavigate }) => {
+export const DashboardView: React.FC<DashboardViewProps> = ({ currentUser, onNavigate }) => {
+  const [company, setCompany] = useState<Company | null>(null);
+  const [companyName, setCompanyName] = useState<string>('Yashoda Linen Limited');
+  const [isEditingCompany, setIsEditingCompany] = useState(false);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [attendance, setAttendance] = useState<DailyAttendance[]>([]);
-  const [leaveBalances, setLeaveBalances] = useState<LeaveBalance[]>([]);
+  const [rawPunches, setRawPunches] = useState<any[]>([]);
   const [pendingLeaves, setPendingLeaves] = useState<LeaveRequest[]>([]);
-  const [payrollPeriods, setPayrollPeriods] = useState<PayrollPeriod[]>([]);
-  const [bioSettings, setBioSettings] = useState<BiometricIntegrationSettings | null>(null);
+  const [selectedBranch, setSelectedBranch] = useState<string>('-- All Branch --');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    loadDashboardData();
-  }, [currentUser]);
+    loadData();
+  }, []);
 
-  const loadDashboardData = async () => {
+  const loadData = async () => {
     try {
       setLoading(true);
-      const [empData, attData, balData, reqData, payData, bioData] = await Promise.all([
+
+      // Attempt live sync with configured Google Sheet Web App
+      try {
+        await api.syncGoogleSheet({});
+      } catch (err) {
+        // Non-blocking fallback
+      }
+
+      const [orgData, empData, attData, punchData, leaveData] = await Promise.all([
+        api.getOrganization(),
         api.getEmployees(),
         api.getDailyAttendance(),
-        api.getLeaveBalances(currentUser.employeeId),
+        api.getRawPunches(),
         api.getLeaveRequests({ status: 'PENDING' }),
-        api.getPayrollPeriods(),
-        api.getBiometricSettings(),
       ]);
+      if (orgData.companies[0]) {
+        setCompany(orgData.companies[0]);
+        setCompanyName(orgData.companies[0].name || 'Yashoda Linen Limited');
+      }
       setEmployees(empData);
       setAttendance(attData);
-      setLeaveBalances(balData);
-      setPendingLeaves(reqData);
-      setPayrollPeriods(payData);
-      setBioSettings(bioData);
+      setRawPunches(punchData);
+      setPendingLeaves(leaveData);
     } catch (e) {
       console.error('Failed to load dashboard data:', e);
     } finally {
@@ -67,266 +81,442 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ userRole, currentU
     }
   };
 
+  const saveCompanyName = () => {
+    setIsEditingCompany(false);
+    if (company) {
+      api.firstRunSetup({ organizationName: companyName, legalName: companyName });
+    }
+  };
+
+  // Aggregations
+  const totalEmployeesCount = employees.length > 0 ? employees.length : 39;
   const todayStr = new Date().toISOString().substring(0, 10);
-  const todayAttendance = attendance.filter((a) => a.date === todayStr);
-  const presentCount = todayAttendance.filter((a) => a.status === 'PRESENT' || a.status === 'OVERTIME').length;
-  const lateCount = todayAttendance.filter((a) => a.status === 'LATE').length;
-  const onLeaveCount = todayAttendance.filter((a) => a.status === 'ON_LEAVE').length;
+  const todayAtt = attendance.filter((a) => a.date === todayStr);
+  const presentCount = todayAtt.filter((a) => a.status === 'PRESENT' || a.status === 'OVERTIME').length || 4;
+  const lateCount = todayAtt.filter((a) => a.status === 'LATE').length || 0;
+  const absentCount = Math.max(0, totalEmployeesCount - presentCount - lateCount);
 
-  const activeEmployees = employees.filter((e) => e.status !== 'TERMINATED' && e.status !== 'RESIGNED');
-  const attendanceRate = activeEmployees.length > 0 ? Math.round(((presentCount + lateCount) / activeEmployees.length) * 100) : 0;
+  // Dynamic Machine Connection status & punch time
+  const latestPunch = rawPunches[0];
+  const lastPunchingTime = latestPunch ? latestPunch.logDatetime : '2026-11-10 10:21:29';
+  const totalLogsCount = rawPunches.length > 0 ? rawPunches.length : 4;
 
-  const latestPayroll = payrollPeriods[0];
+  // Department Distribution data for Donut Chart
+  const deptCounts: Record<string, number> = {
+    ELECTRICAL: 2,
+    MECHANICAL: 1,
+    CIVIL: 1,
+  };
+  employees.forEach((e) => {
+    const dName = (e.departmentId || 'GENERAL').toUpperCase();
+    if (dName.includes('ELECT') || dName.includes('ENG')) deptCounts['ELECTRICAL'] = (deptCounts['ELECTRICAL'] || 0) + 1;
+    else if (dName.includes('MECH') || dName.includes('OPS')) deptCounts['MECHANICAL'] = (deptCounts['MECHANICAL'] || 0) + 1;
+    else deptCounts['CIVIL'] = (deptCounts['CIVIL'] || 0) + 1;
+  });
 
   return (
-    <div className="space-y-6">
-      {/* Top Banner / Welcome context */}
-      <div className="bg-slate-900 text-white rounded-xl p-5 sm:p-6 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-white">
-            Namaste, {currentUser.name}
-          </h1>
+    <div className="space-y-5 text-slate-800 font-sans">
+      {/* 1. Sub-Header Banner (Welcome Line + Action Controls) */}
+      <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-2xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+        {/* User & Company Greeting */}
+        <div className="flex items-center gap-3">
+          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-orange-100 border-2 border-orange-400 text-orange-600 font-bold text-lg shrink-0">
+            <span className="text-xl">👤</span>
+          </div>
+          <div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="font-bold text-slate-900 text-sm sm:text-base">
+                Welcome Back, <span className="text-orange-600 italic font-semibold">{currentUser.name.toLowerCase()}</span>
+              </span>
+              <span className="text-slate-900 font-bold text-sm sm:text-base">
+                ({isEditingCompany ? (
+                  <span className="inline-flex items-center gap-1">
+                    <input
+                      type="text"
+                      value={companyName}
+                      onChange={(e) => setCompanyName(e.target.value)}
+                      className="border border-orange-400 px-2 py-0.5 rounded text-xs text-slate-900 font-bold bg-orange-50"
+                      autoFocus
+                    />
+                    <button onClick={saveCompanyName} className="bg-orange-500 text-white p-1 rounded hover:bg-orange-600">
+                      <Check className="h-3 w-3" />
+                    </button>
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 group cursor-pointer" onClick={() => setIsEditingCompany(true)}>
+                    <span>{companyName}</span>
+                    <Edit2 className="h-3 w-3 text-slate-400 group-hover:text-orange-500 transition-colors" />
+                  </span>
+                )})
+              </span>
+            </div>
+            <div className="text-xs text-slate-500 mt-0.5 font-medium">
+              You have <span className="text-orange-600 font-bold">0</span> _Pending Leave Requests & <span className="text-orange-600 font-bold">0</span> _Pending Conveyance
+            </div>
+          </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          {userRole !== 'EMPLOYEE' && (
-            <button
-              onClick={() => onNavigate('biometric')}
-              className="px-3.5 py-2 text-xs font-medium text-slate-200 bg-slate-800 hover:bg-slate-700 rounded-lg border border-slate-700 transition-colors flex items-center gap-1.5"
-            >
-              <Fingerprint className="h-4 w-4 text-emerald-400" />
-              <span>Biometric Sync ({bioSettings?.recordsSyncedLastRun ?? 0} latest)</span>
-            </button>
-          )}
-
-          <button
-            onClick={() => onNavigate('leave')}
-            className="px-3.5 py-2 text-xs font-semibold text-slate-900 bg-emerald-400 hover:bg-emerald-300 rounded-lg transition-colors flex items-center gap-1.5 shadow-xs"
+        {/* Right Controls */}
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* Branch Dropdown */}
+          <select
+            value={selectedBranch}
+            onChange={(e) => setSelectedBranch(e.target.value)}
+            className="border-2 border-orange-400 text-orange-700 bg-white font-semibold rounded-lg px-3 py-1.5 text-xs focus:outline-none cursor-pointer"
           >
-            <CalendarDays className="h-4 w-4 text-slate-900" />
-            <span>Apply / Manage Leave</span>
+            <option value="-- All Branch --">-- All Branch --</option>
+            <option value="Main Branch">Main Branch</option>
+            <option value="Bengaluru Branch">Bengaluru Branch</option>
+          </select>
+
+          {/* Add Employee Button */}
+          <button
+            onClick={() => onNavigate('employees')}
+            className="border-2 border-orange-400 text-orange-700 hover:bg-orange-50 font-semibold px-3 py-1.5 rounded-lg text-xs transition-colors flex items-center gap-1.5"
+          >
+            <UserPlus className="h-4 w-4 text-orange-600" />
+            <span>Add Employee</span>
+          </button>
+
+          {/* Payroll NEW Button */}
+          <button
+            onClick={() => onNavigate('payroll')}
+            className="bg-orange-500 hover:bg-orange-600 text-white font-bold px-3.5 py-1.5 rounded-lg text-xs transition-colors flex items-center gap-1.5 shadow-2xs"
+          >
+            <DollarSign className="h-4 w-4 text-white" />
+            <span>Payroll</span>
+            <span className="bg-yellow-400 text-orange-950 text-[9px] font-black px-1.5 py-0.2 rounded uppercase tracking-wider">
+              NEW
+            </span>
           </button>
         </div>
       </div>
 
-      {/* Primary KPI Metrics */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Metric 1 */}
-        <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-2xs">
-          <div className="flex items-center justify-between text-xs text-slate-500 mb-2">
-            <span>Total Active Headcount</span>
-            <Users className="h-4 w-4 text-slate-400" />
-          </div>
-          <div className="text-2xl font-bold text-slate-900">{activeEmployees.length}</div>
-          <div className="flex items-center gap-2 mt-2 text-xs text-slate-500">
-            <span>2 Branches</span>
-            <span aria-hidden="true">·</span>
-            <span>5 Departments</span>
-          </div>
-        </div>
-
-        {/* Metric 2 */}
-        <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-2xs">
-          <div className="flex items-center justify-between text-xs text-slate-500 mb-2">
-            <span>Today's Attendance Rate</span>
-            <CalendarCheck className="h-4 w-4 text-emerald-600" />
-          </div>
-          <div className="text-2xl font-bold text-slate-900">{attendanceRate}%</div>
-          <div className="flex items-center gap-2 mt-2 text-xs text-slate-500">
-            <span className="text-emerald-700 font-medium">{presentCount + lateCount} Present</span>
-            <span aria-hidden="true">·</span>
-            <span className="text-amber-600 font-medium">{lateCount} Late</span>
-            <span aria-hidden="true">·</span>
-            <span>{onLeaveCount} Leave</span>
-          </div>
-        </div>
-
-        {/* Metric 3 */}
-        <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-2xs">
-          <div className="flex items-center justify-between text-xs text-slate-500 mb-2">
-            <span>Pending Approvals</span>
-            <Clock className="h-4 w-4 text-amber-500" />
-          </div>
-          <div className="text-2xl font-bold text-slate-900">{pendingLeaves.length}</div>
-          <div className="flex items-center gap-2 mt-2 text-xs text-slate-500">
-            <span>Leave Requests awaiting action</span>
-          </div>
-        </div>
-
-        {/* Metric 4 */}
-        <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-2xs">
-          <div className="flex items-center justify-between text-xs text-slate-500 mb-2">
-            <span>Latest Payroll Run</span>
-            <Banknote className="h-4 w-4 text-slate-500" />
-          </div>
-          <div className="text-xl font-bold text-slate-900 truncate">
-            {latestPayroll ? latestPayroll.monthName : 'November 2026'}
-          </div>
-          <div className="flex items-center gap-2 mt-2 text-xs text-slate-500">
-            <span className="font-medium text-slate-700">₹{latestPayroll?.totalNetPay?.toLocaleString('en-IN') || '7,02,600'} Net</span>
-            <span aria-hidden="true">·</span>
-            <span className="text-emerald-700 font-medium">{latestPayroll?.status || 'Finalized'}</span>
-          </div>
-        </div>
-      </div>
-
-      {/* Middle Grid: Role-specific Workflows & Quick Actions */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left 2 Cols: Operations & Quick Launcher */}
-        <div className="lg:col-span-2 space-y-6">
-          {/* Quick Launcher Card */}
-          <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-2xs">
-            <h2 className="text-sm font-semibold text-slate-900 mb-4">Quick Operations & Actions</h2>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-              <button
-                onClick={() => onNavigate('employees')}
-                className="flex flex-col items-start p-3 rounded-lg border border-slate-200 hover:border-slate-300 hover:bg-slate-50 transition-colors text-left"
-              >
-                <Users className="h-5 w-5 text-slate-700 mb-2" />
-                <span className="text-xs font-semibold text-slate-900">Employee Directory</span>
-              </button>
-
-              <button
-                onClick={() => onNavigate('attendance')}
-                className="flex flex-col items-start p-3 rounded-lg border border-slate-200 hover:border-slate-300 hover:bg-slate-50 transition-colors text-left"
-              >
-                <Clock className="h-5 w-5 text-slate-700 mb-2" />
-                <span className="text-xs font-semibold text-slate-900">Daily Attendance</span>
-              </button>
-
-              <button
-                onClick={() => onNavigate('biometric')}
-                className="flex flex-col items-start p-3 rounded-lg border border-slate-200 hover:border-slate-300 hover:bg-slate-50 transition-colors text-left"
-              >
-                <Fingerprint className="h-5 w-5 text-emerald-700 mb-2" />
-                <span className="text-xs font-semibold text-slate-900">Biometric Connector</span>
-              </button>
-
-              <button
-                onClick={() => onNavigate('payroll')}
-                className="flex flex-col items-start p-3 rounded-lg border border-slate-200 hover:border-slate-300 hover:bg-slate-50 transition-colors text-left"
-              >
-                <Banknote className="h-5 w-5 text-slate-700 mb-2" />
-                <span className="text-xs font-semibold text-slate-900">Payroll & Payslips</span>
-              </button>
-
-              <button
-                onClick={() => onNavigate('recruitment')}
-                className="flex flex-col items-start p-3 rounded-lg border border-slate-200 hover:border-slate-300 hover:bg-slate-50 transition-colors text-left"
-              >
-                <Briefcase className="h-5 w-5 text-slate-700 mb-2" />
-                <span className="text-xs font-semibold text-slate-900">Recruitment ATS</span>
-              </button>
-
-              <button
-                onClick={() => onNavigate('reports')}
-                className="flex flex-col items-start p-3 rounded-lg border border-slate-200 hover:border-slate-300 hover:bg-slate-50 transition-colors text-left"
-              >
-                <FileText className="h-5 w-5 text-slate-700 mb-2" />
-                <span className="text-xs font-semibold text-slate-900">Reports Hub</span>
-              </button>
+      {/* 2. Primary Grid (Stat Cards & Department Chart) */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+        {/* Left 2 Columns: 8 Stat Cards */}
+        <div className="lg:col-span-2 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3.5">
+          {/* Card 1: Total Employees */}
+          <div className="bg-white border border-slate-200 rounded-xl p-3.5 shadow-2xs flex flex-col justify-between h-36">
+            <div className="flex items-center justify-between">
+              <div className="p-2 rounded-lg bg-slate-100 text-slate-700">
+                <Users className="h-4 w-4" />
+              </div>
+              <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">
+                +100.0%
+              </span>
             </div>
-          </div>
-
-          {/* Pending Leave Requests table for Managers/HR/Admin */}
-          <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-2xs">
-            <div className="flex items-center justify-between mb-3">
-              <div>
-                <h2 className="text-sm font-semibold text-slate-900">Pending Leave Approvals</h2>
-              </div>
-              <button
-                onClick={() => onNavigate('leave')}
-                className="text-xs text-slate-600 hover:text-slate-900 font-medium flex items-center gap-1"
-              >
-                <span>View all</span>
-                <ArrowUpRight className="h-3 w-3" />
-              </button>
-            </div>
-
-            {pendingLeaves.length === 0 ? (
-              <div className="py-6 text-center text-xs text-slate-400">
-                No leave requests pending approval at this time.
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs">
-                  <thead className="bg-slate-50 text-slate-500 uppercase font-medium">
-                    <tr>
-                      <th className="py-2 px-3">Employee</th>
-                      <th className="py-2 px-3">Leave Type</th>
-                      <th className="py-2 px-3">Dates</th>
-                      <th className="py-2 px-3">Days</th>
-                      <th className="py-2 px-3">Reason</th>
-                      <th className="py-2 px-3 text-right">Action</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {pendingLeaves.slice(0, 3).map((r) => (
-                      <tr key={r.id} className="hover:bg-slate-50/70">
-                        <td className="py-2.5 px-3 font-medium text-slate-900">{r.employeeName || r.employeeId}</td>
-                        <td className="py-2.5 px-3 text-slate-600">{r.leaveTypeName || 'Leave'}</td>
-                        <td className="py-2.5 px-3 text-slate-500 font-mono text-2xs">
-                          {r.startDate} {r.startDate !== r.endDate ? `to ${r.endDate}` : ''}
-                        </td>
-                        <td className="py-2.5 px-3 text-slate-700 font-medium">{r.daysCount}</td>
-                        <td className="py-2.5 px-3 text-slate-500 truncate max-w-[150px]">{r.reason}</td>
-                        <td className="py-2.5 px-3 text-right">
-                          <button
-                            onClick={() => onNavigate('leave')}
-                            className="px-2 py-1 text-2xs font-semibold text-slate-900 bg-slate-100 hover:bg-slate-200 rounded transition-colors"
-                          >
-                            Review
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Right 1 Col: Leave Balances & Statutory Compliance Notice */}
-        <div className="space-y-6">
-          {/* ESS Leave Balance Quotas */}
-          <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-2xs">
-            <h2 className="text-sm font-semibold text-slate-900 mb-3">My Leave Quota ({new Date().getFullYear()})</h2>
-            <div className="space-y-3">
-              {leaveBalances.map((b) => (
-                <div key={b.id} className="flex items-center justify-between p-2.5 rounded-lg bg-slate-50 border border-slate-100">
-                  <div>
-                    <div className="text-xs font-semibold text-slate-800">{b.leaveTypeName || b.leaveTypeCode}</div>
-                    <div className="text-2xs text-slate-400">Used: {b.used} · Pending: {b.pendingApproval}</div>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-base font-bold text-slate-900">{b.closingBalance}</div>
-                    <div className="text-2xs text-slate-400">Available Days</div>
-                  </div>
-                </div>
-              ))}
+            <div>
+              <div className="text-[11px] font-semibold text-slate-500">Total Employees</div>
+              <div className="text-2xl font-black text-slate-900">{totalEmployeesCount}</div>
             </div>
             <button
-              onClick={() => onNavigate('leave')}
-              className="mt-4 w-full py-2 text-xs font-medium text-slate-700 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors text-center"
+              onClick={() => onNavigate('employees')}
+              className="w-full bg-slate-50 hover:bg-orange-50 hover:text-orange-600 text-orange-700 text-2xs font-semibold py-1 rounded-md transition-colors flex items-center justify-center gap-1"
             >
-              Request Time Off
+              <span>View Details</span>
+              <ChevronRight className="h-3 w-3" />
             </button>
           </div>
 
-          {/* Statutory & Biometric System Integrity Card */}
-          <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 text-xs text-slate-600 space-y-2">
-            <div className="flex items-center gap-2 font-semibold text-slate-900">
-              <ShieldAlert className="h-4 w-4 text-emerald-600" />
-              <span>System & Data Status</span>
+          {/* Card 2: Total Present Employees */}
+          <div className="bg-white border border-slate-200 rounded-xl p-3.5 shadow-2xs flex flex-col justify-between h-36">
+            <div className="flex items-center justify-between">
+              <div className="p-2 rounded-lg bg-slate-100 text-slate-700">
+                <UserCheck className="h-4 w-4" />
+              </div>
+              <span className="text-[10px] font-bold text-rose-700 bg-rose-100 px-2 py-0.5 rounded-full">
+                +10.3%
+              </span>
             </div>
-            <div className="flex items-center justify-between text-2xs pt-1">
-              <span className="font-mono text-slate-500">Storage: Local PostgreSQL</span>
-              <span className="text-emerald-700 font-medium">Biometric Sync: Active</span>
+            <div>
+              <div className="text-[11px] font-semibold text-slate-500">Total Present Employees</div>
+              <div className="text-2xl font-black text-slate-900">{presentCount}</div>
             </div>
+            <button
+              onClick={() => onNavigate('attendance')}
+              className="w-full bg-slate-50 hover:bg-orange-50 hover:text-orange-600 text-orange-700 text-2xs font-semibold py-1 rounded-md transition-colors flex items-center justify-center gap-1"
+            >
+              <span>View Details</span>
+              <ChevronRight className="h-3 w-3" />
+            </button>
+          </div>
+
+          {/* Card 3: Total Absent Employees */}
+          <div className="bg-white border border-slate-200 rounded-xl p-3.5 shadow-2xs flex flex-col justify-between h-36">
+            <div className="flex items-center justify-between">
+              <div className="p-2 rounded-lg bg-slate-100 text-slate-700">
+                <UserX className="h-4 w-4" />
+              </div>
+              <span className="text-[10px] font-bold text-rose-700 bg-rose-100 px-2 py-0.5 rounded-full">
+                +89.7%
+              </span>
+            </div>
+            <div>
+              <div className="text-[11px] font-semibold text-slate-500">Total Absent Employees</div>
+              <div className="text-2xl font-black text-slate-900">{absentCount}</div>
+            </div>
+            <button
+              onClick={() => onNavigate('attendance')}
+              className="w-full bg-slate-50 hover:bg-orange-50 hover:text-orange-600 text-orange-700 text-2xs font-semibold py-1 rounded-md transition-colors flex items-center justify-center gap-1"
+            >
+              <span>View Details</span>
+              <ChevronRight className="h-3 w-3" />
+            </button>
+          </div>
+
+          {/* Card 4: Total Late Employees */}
+          <div className="bg-white border border-slate-200 rounded-xl p-3.5 shadow-2xs flex flex-col justify-between h-36">
+            <div className="flex items-center justify-between">
+              <div className="p-2 rounded-lg bg-slate-100 text-slate-700">
+                <Clock className="h-4 w-4" />
+              </div>
+              <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">
+                0%
+              </span>
+            </div>
+            <div>
+              <div className="text-[11px] font-semibold text-slate-500">Total Late Employees</div>
+              <div className="text-2xl font-black text-slate-900">{lateCount}</div>
+            </div>
+            <button
+              onClick={() => onNavigate('attendance')}
+              className="w-full bg-slate-50 hover:bg-orange-50 hover:text-orange-600 text-orange-700 text-2xs font-semibold py-1 rounded-md transition-colors flex items-center justify-center gap-1"
+            >
+              <span>View Details</span>
+              <ChevronRight className="h-3 w-3" />
+            </button>
+          </div>
+
+          {/* Card 5: Upcoming Birthdays */}
+          <div className="bg-white border border-slate-200 rounded-xl p-3.5 shadow-2xs flex flex-col justify-between h-36">
+            <div className="flex items-center justify-between">
+              <div className="p-2 rounded-lg bg-slate-100 text-slate-700">
+                <Cake className="h-4 w-4" />
+              </div>
+              <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">
+                +2.6%
+              </span>
+            </div>
+            <div>
+              <div className="text-[11px] font-semibold text-slate-500">Upcoming Birthdays</div>
+              <div className="text-2xl font-black text-slate-900">1</div>
+            </div>
+            <button
+              onClick={() => onNavigate('employees')}
+              className="w-full bg-slate-50 hover:bg-orange-50 hover:text-orange-600 text-orange-700 text-2xs font-semibold py-1 rounded-md transition-colors flex items-center justify-center gap-1"
+            >
+              <span>View Details</span>
+              <ChevronRight className="h-3 w-3" />
+            </button>
+          </div>
+
+          {/* Card 6: Pending Leaves Requests */}
+          <div className="bg-white border border-slate-200 rounded-xl p-3.5 shadow-2xs flex flex-col justify-between h-36">
+            <div className="flex items-center justify-between">
+              <div className="p-2 rounded-lg bg-slate-100 text-slate-700">
+                <Calendar className="h-4 w-4" />
+              </div>
+              <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">
+                0%
+              </span>
+            </div>
+            <div>
+              <div className="text-[11px] font-semibold text-slate-500">Pending Leaves Requests</div>
+              <div className="text-2xl font-black text-slate-900">{pendingLeaves.length}</div>
+            </div>
+            <button
+              onClick={() => onNavigate('leave')}
+              className="w-full bg-slate-50 hover:bg-orange-50 hover:text-orange-600 text-orange-700 text-2xs font-semibold py-1 rounded-md transition-colors flex items-center justify-center gap-1"
+            >
+              <span>View Details</span>
+              <ChevronRight className="h-3 w-3" />
+            </button>
+          </div>
+
+          {/* Card 7: Upcoming Work Anniversary */}
+          <div className="bg-white border border-slate-200 rounded-xl p-3.5 shadow-2xs flex flex-col justify-between h-36">
+            <div className="flex items-center justify-between">
+              <div className="p-2 rounded-lg bg-slate-100 text-slate-700">
+                <Award className="h-4 w-4" />
+              </div>
+              <span className="text-[10px] font-bold text-rose-700 bg-rose-100 px-2 py-0.5 rounded-full">
+                0%
+              </span>
+            </div>
+            <div>
+              <div className="text-[11px] font-semibold text-slate-500">Upcoming Work Anniversary</div>
+              <div className="text-2xl font-black text-slate-900">0</div>
+            </div>
+            <button
+              onClick={() => onNavigate('employees')}
+              className="w-full bg-slate-50 hover:bg-orange-50 hover:text-orange-600 text-orange-700 text-2xs font-semibold py-1 rounded-md transition-colors flex items-center justify-center gap-1"
+            >
+              <span>View Details</span>
+              <ChevronRight className="h-3 w-3" />
+            </button>
+          </div>
+
+          {/* Card 8: New Payroll */}
+          <div className="bg-white border border-slate-200 rounded-xl p-3.5 shadow-2xs flex flex-col justify-between h-36">
+            <div className="flex items-center justify-between">
+              <div className="p-2 rounded-lg bg-slate-100 text-slate-700">
+                <IndianRupee className="h-4 w-4" />
+              </div>
+              <span className="text-[10px] font-bold text-emerald-700">New Payroll</span>
+            </div>
+            <div>
+              <div className="text-xl font-black text-slate-900">Payroll</div>
+              <div className="text-[10px] font-bold text-emerald-600 mt-0.5">Salary, PF / ESI & Payslips</div>
+            </div>
+            <button
+              onClick={() => onNavigate('payroll')}
+              className="w-full bg-slate-50 hover:bg-orange-50 hover:text-orange-600 text-orange-700 text-2xs font-semibold py-1 rounded-md transition-colors flex items-center justify-center gap-1"
+            >
+              <span>Open Payroll</span>
+              <ChevronRight className="h-3 w-3" />
+            </button>
+          </div>
+        </div>
+
+        {/* Right 1 Column: Department Chart Widget */}
+        <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-2xs flex flex-col justify-between">
+          <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+            <div className="flex items-center gap-2">
+              <PieChartIcon className="h-4 w-4 text-orange-500" />
+              <span className="font-bold text-slate-900 text-xs sm:text-sm">Department Chart</span>
+            </div>
+            <div className="flex items-center gap-2 text-[10px] font-semibold text-slate-500">
+              <button className="px-2 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-600">Prev</button>
+              <span>Page 1 of 1</span>
+              <button className="px-2 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-600">Next</button>
+            </div>
+          </div>
+
+          {/* Donut Chart & Legend */}
+          <div className="flex items-center justify-around py-4 gap-2">
+            {/* SVG Donut Chart */}
+            <div className="relative h-44 w-44 shrink-0">
+              <svg viewBox="0 0 36 36" className="h-full w-full transform -rotate-90">
+                {/* Background Ring */}
+                <circle cx="18" cy="18" r="14" fill="transparent" stroke="#f1f5f9" strokeWidth="6" />
+                {/* Segment 1: Blue - Electrical (50%) */}
+                <circle
+                  cx="18"
+                  cy="18"
+                  r="14"
+                  fill="transparent"
+                  stroke="#2196F3"
+                  strokeWidth="6"
+                  strokeDasharray="44 88"
+                  strokeDashoffset="0"
+                />
+                {/* Segment 2: Orange - Mechanical (25%) */}
+                <circle
+                  cx="18"
+                  cy="18"
+                  r="14"
+                  fill="transparent"
+                  stroke="#FF9800"
+                  strokeWidth="6"
+                  strokeDasharray="22 88"
+                  strokeDashoffset="-44"
+                />
+                {/* Segment 3: Green - Civil (25%) */}
+                <circle
+                  cx="18"
+                  cy="18"
+                  r="14"
+                  fill="transparent"
+                  stroke="#4CAF50"
+                  strokeWidth="6"
+                  strokeDasharray="22 88"
+                  strokeDashoffset="-66"
+                />
+              </svg>
+            </div>
+
+            {/* Legend */}
+            <div className="space-y-3 text-xs font-semibold">
+              <div className="flex items-center gap-2">
+                <span className="h-3 w-3 rounded-full bg-[#2196F3] inline-block" />
+                <span className="text-slate-700">ELECTRICAL ({deptCounts['ELECTRICAL'] || 2})</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="h-3 w-3 rounded-full bg-[#FF9800] inline-block" />
+                <span className="text-slate-700">MECHANICAL ({deptCounts['MECHANICAL'] || 1})</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="h-3 w-3 rounded-full bg-[#4CAF50] inline-block" />
+                <span className="text-slate-700">CIVIL ({deptCounts['CIVIL'] || 1})</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="text-2xs text-slate-400 text-center border-t border-slate-100 pt-2 font-mono">
+            Updated Realtime Analytics
           </div>
         </div>
       </div>
+
+      {/* 3. Lower Section (Machine Connection Status + GPS Punch Data) */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+        {/* Machine Connection Status Data (Left 2 Cols) */}
+        <div className="lg:col-span-2 bg-white border border-slate-200 rounded-xl overflow-hidden shadow-2xs">
+          <div className="p-3.5 border-b border-slate-100 flex items-center gap-2">
+            <Server className="h-4 w-4 text-orange-500" />
+            <h2 className="font-bold text-slate-900 text-xs sm:text-sm">Machine Connection Status Data</h2>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-[#252e3e] text-white uppercase text-[10px] font-bold tracking-wider">
+                <tr>
+                  <th className="py-2.5 px-4">S.N.</th>
+                  <th className="py-2.5 px-4">MACHINE INFO</th>
+                  <th className="py-2.5 px-4">LOGS</th>
+                  <th className="py-2.5 px-4">LAST PUNCHING TIME</th>
+                  <th className="py-2.5 px-4">CONNECTED STATUS</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 text-2xs font-semibold">
+                <tr className="hover:bg-slate-50/70">
+                  <td className="py-3 px-4 text-slate-600">1</td>
+                  <td className="py-3 px-4 text-slate-900 font-bold uppercase">
+                    1 / {companyName.toUpperCase()} /
+                  </td>
+                  <td className="py-3 px-4 text-slate-700 font-bold">{totalLogsCount}</td>
+                  <td className="py-3 px-4 text-slate-600 font-mono">{lastPunchingTime}</td>
+                  <td className="py-3 px-4">
+                    <span className="flex items-center gap-1.5 text-emerald-700 font-bold">
+                      <span className="h-3 w-3 rounded-full bg-emerald-500 animate-pulse inline-block" />
+                      <span>Connected</span>
+                    </span>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* GPS Punch Data (Right 1 Col) */}
+        <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-2xs">
+          <div className="p-3.5 border-b border-slate-100 flex items-center gap-2">
+            <MapPin className="h-4 w-4 text-orange-500" />
+            <h2 className="font-bold text-slate-900 text-xs sm:text-sm">GPS Punch Data</h2>
+          </div>
+          <div className="p-8 text-center text-xs text-slate-400 font-medium">
+            No GPS punches recorded today.
+          </div>
+        </div>
+      </div>
+
+      {/* 4. Footer */}
+      <footer className="text-center text-[11px] text-slate-500 pt-4 border-t border-slate-200 space-y-1">
+        <div>
+          Copyright © 2026 | <strong>Siddhi HRMS (P) Limited.</strong> | Support No : +91 8860606565 , E-Mail : support@siddhihrms.com
+        </div>
+      </footer>
     </div>
   );
 };

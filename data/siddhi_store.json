@@ -1,0 +1,444 @@
+{
+  "version": 1,
+  "isFirstRunSetupCompleted": true,
+  "companies": [
+    {
+      "id": "comp-101",
+      "code": "SIDDHI-ORG",
+      "name": "Siddhi Organization",
+      "legalName": "Siddhi Organization",
+      "taxId": "",
+      "currency": "INR",
+      "timezone": "Asia/Kolkata",
+      "dateFormat": "DD/MM/YYYY",
+      "financialYearStart": "04-01",
+      "website": "",
+      "phone": "",
+      "email": "admin@siddhi-hrms.local",
+      "address": "On-Premises Server"
+    }
+  ],
+  "branches": [
+    {
+      "id": "br-main",
+      "companyId": "comp-101",
+      "code": "MAIN-LOC",
+      "name": "Main Organization Branch",
+      "address": "On-Premises",
+      "city": "",
+      "state": "",
+      "country": "India",
+      "postalCode": "",
+      "isHeadquarters": true,
+      "geofenceEnabled": false
+    }
+  ],
+  "departments": [
+    {
+      "id": "dept-gen",
+      "companyId": "comp-101",
+      "code": "GEN",
+      "name": "General Operations",
+      "costCenterCode": "CC-GEN"
+    }
+  ],
+  "designations": [
+    {
+      "id": "desig-gen",
+      "code": "EMP",
+      "title": "Staff Member",
+      "departmentId": "dept-gen",
+      "gradeLevel": "L1"
+    }
+  ],
+  "grades": [],
+  "shifts": [
+    {
+      "id": "shift-gen",
+      "code": "GEN-0918",
+      "name": "Standard Shift (9:00 AM - 6:00 PM)",
+      "startTime": "09:00",
+      "endTime": "18:00",
+      "graceMinutes": 15,
+      "halfDayHours": 4,
+      "fullDayHours": 8,
+      "breakMinutes": 60,
+      "isOvernight": false,
+      "weeklyOffDays": [
+        0
+      ]
+    }
+  ],
+  "holidays": [],
+  "employees": [
+    {
+      "id": "emp-bio-1001-mwabd1lg",
+      "employeeCode": "1001",
+      "firstName": "Yashoda",
+      "lastName": "Operative",
+      "email": "1001@machine.local",
+      "phone": "",
+      "gender": "OTHER",
+      "dateOfBirth": "1990-01-01",
+      "dateOfJoining": "2026-11-10",
+      "companyId": "comp-101",
+      "branchId": "br-main",
+      "departmentId": "dept-gen",
+      "designationId": "desig-gen",
+      "gradeId": "grd-l1",
+      "status": "ACTIVE",
+      "employmentType": "FULL_TIME",
+      "probationPeriodMonths": 0,
+      "confirmationDate": "2026-11-10",
+      "role": "EMPLOYEE",
+      "panNumber": "",
+      "nationalId": "",
+      "pfNumber": "",
+      "bankName": "",
+      "bankAccountNumber": "",
+      "bankIfsc": "",
+      "emergencyContactName": "",
+      "emergencyContactRelation": "",
+      "emergencyContactPhone": "",
+      "address": "Biometric Device (REALTIME-T502-01)",
+      "currentSalaryStructureId": "sal-standard"
+    },
+    {
+      "id": "emp-bio-1002-mwabd1lg",
+      "employeeCode": "1002",
+      "firstName": "Siddhi",
+      "lastName": "Specialist",
+      "email": "1002@machine.local",
+      "phone": "",
+      "gender": "OTHER",
+      "dateOfBirth": "1990-01-01",
+      "dateOfJoining": "2026-11-10",
+      "companyId": "comp-101",
+      "branchId": "br-main",
+      "departmentId": "dept-gen",
+      "designationId": "desig-gen",
+      "gradeId": "grd-l1",
+      "status": "ACTIVE",
+      "employmentType": "FULL_TIME",
+      "probationPeriodMonths": 0,
+      "confirmationDate": "2026-11-10",
+      "role": "EMPLOYEE",
+      "panNumber": "",
+      "nationalId": "",
+      "pfNumber": "",
+      "bankName": "",
+      "bankAccountNumber": "",
+      "bankIfsc": "",
+      "emergencyContactName": "",
+      "emergencyContactRelation": "",
+      "emergencyContactPhone": "",
+      "address": "Biometric Device (REALTIME-T502-02)",
+      "currentSalaryStructureId": "sal-standard"
+    },
+    {
+      "id": "emp-bio-1003-mwabd1lg",
+      "employeeCode": "1003",
+      "firstName": "Rahul",
+      "lastName": "Staff",
+      "email": "1003@machine.local",
+      "phone": "",
+      "gender": "OTHER",
+      "dateOfBirth": "1990-01-01",
+      "dateOfJoining": "2026-11-10",
+      "companyId": "comp-101",
+      "branchId": "br-main",
+      "departmentId": "dept-gen",
+      "designationId": "desig-gen",
+      "gradeId": "grd-l1",
+      "status": "ACTIVE",
+      "employmentType": "FULL_TIME",
+      "probationPeriodMonths": 0,
+      "confirmationDate": "2026-11-10",
+      "role": "EMPLOYEE",
+      "panNumber": "",
+      "nationalId": "",
+      "pfNumber": "",
+      "bankName": "",
+      "bankAccountNumber": "",
+      "bankIfsc": "",
+      "emergencyContactName": "",
+      "emergencyContactRelation": "",
+      "emergencyContactPhone": "",
+      "address": "Biometric Device (REALTIME-T502-01)",
+      "currentSalaryStructureId": "sal-standard"
+    }
+  ],
+  "employeeDocuments": [],
+  "rawBiometricPunches": [
+    {
+      "id": "punch-1794292390996-plsfe",
+      "employeeCode": "1003",
+      "logDatetime": "2026-11-10 09:45:00",
+      "logTime": "09:45:00",
+      "downloadedAt": "2026-11-10 06:33:10",
+      "deviceSn": "REALTIME-T502-01",
+      "syncBatchId": "sync-1794292390996",
+      "createdAt": "2026-11-10T06:33:10.996Z",
+      "status": "PROCESSED",
+      "resolvedEmployeeId": "emp-bio-1003-mwabd1lg"
+    },
+    {
+      "id": "punch-1794292390996-qeuri",
+      "employeeCode": "1002",
+      "logDatetime": "2026-11-10 09:28:12",
+      "logTime": "09:28:12",
+      "downloadedAt": "2026-11-10 06:33:10",
+      "deviceSn": "REALTIME-T502-02",
+      "syncBatchId": "sync-1794292390996",
+      "createdAt": "2026-11-10T06:33:10.996Z",
+      "status": "PROCESSED",
+      "resolvedEmployeeId": "emp-bio-1002-mwabd1lg"
+    },
+    {
+      "id": "punch-1794292390996-yojl0",
+      "employeeCode": "1001",
+      "logDatetime": "2026-11-10 09:15:00",
+      "logTime": "09:15:00",
+      "downloadedAt": "2026-11-10 06:33:10",
+      "deviceSn": "REALTIME-T502-01",
+      "syncBatchId": "sync-1794292390996",
+      "createdAt": "2026-11-10T06:33:10.996Z",
+      "status": "PROCESSED",
+      "resolvedEmployeeId": "emp-bio-1001-mwabd1lg"
+    }
+  ],
+  "biometricSettings": {
+    "id": "bio-cfg-01",
+    "name": "Realtime Biometric Machine Connector",
+    "enabled": true,
+    "apiBaseUrl": "",
+    "endpoint": "/api/biometric/webhook",
+    "httpMethod": "POST",
+    "authType": "NONE",
+    "authCredentials": {
+      "token": ""
+    },
+    "requestHeaders": {
+      "Content-Type": "application/json",
+      "Accept": "application/json"
+    },
+    "queryParams": {},
+    "requestBodyTemplate": "{\n  \"from_datetime\": \"{{START_TIME}}\",\n  \"to_datetime\": \"{{END_TIME}}\"\n}",
+    "pollingIntervalMinutes": 5,
+    "requestTimeoutSeconds": 30,
+    "lastSyncStatus": "SUCCESS",
+    "recordsSyncedLastRun": 3,
+    "allowCsvFallback": true,
+    "timezone": "Asia/Kolkata",
+    "lastSyncAt": "2026-11-10 06:33:10",
+    "syncCursor": "2026-11-10 06:33:10"
+  },
+  "dailyAttendance": [
+    {
+      "id": "att-2026-11-10-1003",
+      "employeeId": "emp-bio-1003-mwabd1lg",
+      "date": "2026-11-10",
+      "shiftId": "shift-gen",
+      "firstIn": "09:45:00",
+      "punchCount": 1,
+      "workHours": 0,
+      "status": "HALF_DAY",
+      "lateMinutes": 45,
+      "earlyExitMinutes": 0,
+      "overtimeMinutes": 0,
+      "isCorrectionApplied": false,
+      "source": "BIOMETRIC"
+    },
+    {
+      "id": "att-2026-11-10-1002",
+      "employeeId": "emp-bio-1002-mwabd1lg",
+      "date": "2026-11-10",
+      "shiftId": "shift-gen",
+      "firstIn": "09:28:12",
+      "punchCount": 1,
+      "workHours": 0,
+      "status": "HALF_DAY",
+      "lateMinutes": 28,
+      "earlyExitMinutes": 0,
+      "overtimeMinutes": 0,
+      "isCorrectionApplied": false,
+      "source": "BIOMETRIC"
+    },
+    {
+      "id": "att-2026-11-10-1001",
+      "employeeId": "emp-bio-1001-mwabd1lg",
+      "date": "2026-11-10",
+      "shiftId": "shift-gen",
+      "firstIn": "09:15:00",
+      "punchCount": 1,
+      "workHours": 0,
+      "status": "HALF_DAY",
+      "lateMinutes": 0,
+      "earlyExitMinutes": 0,
+      "overtimeMinutes": 0,
+      "isCorrectionApplied": false,
+      "source": "BIOMETRIC"
+    }
+  ],
+  "attendanceCorrectionRequests": [],
+  "leaveTypes": [
+    {
+      "id": "lt-cl",
+      "code": "CL",
+      "name": "Casual Leave",
+      "annualQuota": 12,
+      "carryForwardMax": 0,
+      "isPaid": true,
+      "encashmentAllowed": false,
+      "probationAllowed": true,
+      "requiresAttachment": false
+    },
+    {
+      "id": "lt-sl",
+      "code": "SL",
+      "name": "Sick / Medical Leave",
+      "annualQuota": 10,
+      "carryForwardMax": 5,
+      "isPaid": true,
+      "encashmentAllowed": false,
+      "probationAllowed": true,
+      "requiresAttachment": true
+    },
+    {
+      "id": "lt-el",
+      "code": "EL",
+      "name": "Earned / Privilege Leave",
+      "annualQuota": 18,
+      "carryForwardMax": 30,
+      "isPaid": true,
+      "encashmentAllowed": true,
+      "probationAllowed": false,
+      "requiresAttachment": false
+    },
+    {
+      "id": "lt-ml",
+      "code": "ML",
+      "name": "Maternity Leave",
+      "annualQuota": 182,
+      "carryForwardMax": 0,
+      "isPaid": true,
+      "encashmentAllowed": false,
+      "probationAllowed": true,
+      "requiresAttachment": true
+    },
+    {
+      "id": "lt-pl",
+      "code": "PL",
+      "name": "Paternity Leave",
+      "annualQuota": 10,
+      "carryForwardMax": 0,
+      "isPaid": true,
+      "encashmentAllowed": false,
+      "probationAllowed": true,
+      "requiresAttachment": false
+    },
+    {
+      "id": "lt-lop",
+      "code": "LOP",
+      "name": "Loss of Pay (Unpaid)",
+      "annualQuota": 365,
+      "carryForwardMax": 0,
+      "isPaid": false,
+      "encashmentAllowed": false,
+      "probationAllowed": true,
+      "requiresAttachment": false
+    }
+  ],
+  "leaveBalances": [],
+  "leaveRequests": [],
+  "leaveLedger": [],
+  "salaryStructures": [
+    {
+      "id": "sal-standard",
+      "name": "Standard Indian Corporate Salary Structure (FY 2026-27)",
+      "description": "50% Basic, 40% HRA, PF 12%, ESI eligible under 21k, Standard PT slab",
+      "basicPercentageOfGross": 50,
+      "hraPercentageOfBasic": 40,
+      "daPercentageOfBasic": 10,
+      "conveyanceMonthly": 1600,
+      "medicalMonthly": 1250,
+      "specialAllowancePercentage": 0,
+      "epfApplicable": true,
+      "epfEmployerShare": 12,
+      "epfEmployeeShare": 12,
+      "epfWageCap": 15000,
+      "esiApplicable": true,
+      "esiEmployerShare": 3.25,
+      "esiEmployeeShare": 0.75,
+      "esiWageCap": 21000,
+      "ptApplicable": true,
+      "ptMonthlySlab": 200,
+      "tdsApplicable": true,
+      "lwfMonthly": 20
+    }
+  ],
+  "payrollPeriods": [],
+  "employeePayslips": [],
+  "jobRequisitions": [],
+  "candidates": [],
+  "performanceCycles": [],
+  "performanceGoals": [],
+  "expenseClaims": [],
+  "employeeLoans": [],
+  "assets": [],
+  "onboardingChecklists": [],
+  "offboardingRecords": [],
+  "helpdeskTickets": [],
+  "auditLogs": [],
+  "statutoryRuleConfig": {
+    "id": "stat-in-01",
+    "jurisdiction": "IN",
+    "effectiveFrom": "2026-04-01",
+    "pfWageCeiling": 15000,
+    "pfEmployeeRate": 12,
+    "pfEmployerRate": 12,
+    "esiWageCeiling": 21000,
+    "esiEmployeeRate": 0.75,
+    "esiEmployerRate": 3.25,
+    "ptSlabsByState": {
+      "Karnataka": [
+        {
+          "minSalary": 0,
+          "maxSalary": 14999,
+          "taxAmount": 0
+        },
+        {
+          "minSalary": 15000,
+          "maxSalary": 9999999,
+          "taxAmount": 200
+        }
+      ],
+      "Maharashtra": [
+        {
+          "minSalary": 0,
+          "maxSalary": 7500,
+          "taxAmount": 0
+        },
+        {
+          "minSalary": 7501,
+          "maxSalary": 10000,
+          "taxAmount": 175
+        },
+        {
+          "minSalary": 10001,
+          "maxSalary": 9999999,
+          "taxAmount": 200
+        }
+      ]
+    },
+    "adminVerified": true,
+    "lastVerifiedDate": "2026-10-01",
+    "verifiedBy": "emp-admin",
+    "legalDisclaimer": "STATUTORY COMPLIANCE NOTICE: Statutory rates and wage ceilings are configurable parameters. Organization administrators must verify prevailing state and national statutory mandates prior to running binding production payroll."
+  },
+  "alumniPortalEnabled": false,
+  "socialPosts": [],
+  "wfhRequests": [],
+  "taxDeclarations": [],
+  "oneOnOnes": []
+}
